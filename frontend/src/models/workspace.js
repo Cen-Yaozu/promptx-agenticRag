@@ -114,6 +114,22 @@ const Workspace = {
       );
     return this._updateChatResponse(slug, chatId, newText);
   },
+  /**
+   * 🔥 多路复用流式聊天函数
+   * 这是前端发起AI对话的核心入口函数!
+   * 根据是否有threadSlug来决定调用工作空间聊天还是线程聊天
+   *
+   * @param {string} workspaceSlug - 工作空间的唯一标识符(slug)
+   * @param {string|null} threadSlug - 对话线程的唯一标识符(可选)
+   * @param {string} prompt - 用户输入的消息内容
+   * @param {Function} chatHandler - SSE流式响应的处理回调函数
+   * @param {Array} attachments - 附件文件列表(可选)
+   * @returns {Promise<void>}
+   *
+   * 流程:
+   * 1. 如果有threadSlug -> 调用线程聊天API
+   * 2. 如果没有threadSlug -> 调用工作空间聊天API
+   */
   multiplexStream: async function ({
     workspaceSlug,
     threadSlug = null,
@@ -121,6 +137,8 @@ const Workspace = {
     chatHandler,
     attachments = [],
   }) {
+    // 🔥 分支1: 线程聊天(Thread Chat)
+    // 线程是对话的子分组,可以在一个工作空间内创建多个独立的对话线程
     if (!!threadSlug)
       return this.threads.streamChat(
         { workspaceSlug, threadSlug },
@@ -128,6 +146,9 @@ const Workspace = {
         chatHandler,
         attachments
       );
+
+    // 🔥 分支2: 工作空间聊天(Workspace Chat)
+    // 这是默认的聊天模式,所有消息都在工作空间级别
     return this.streamChat(
       { slug: workspaceSlug },
       prompt,
@@ -135,61 +156,105 @@ const Workspace = {
       attachments
     );
   },
+  /**
+   * 🔥 🔥 🔥 流式聊天核心函数
+   * 这是DeeChat前端最重要的函数之一!
+   * 负责建立SSE连接,实时接收AI的流式响应
+   *
+   * @param {Object} params - 参数对象
+   * @param {string} params.slug - 工作空间slug标识符
+   * @param {string} message - 用户消息内容
+   * @param {Function} handleChat - SSE响应处理函数
+   * @param {Array} attachments - 附件列表
+   * @returns {Promise<void>}
+   *
+   * 技术要点:
+   * 1. 使用fetchEventSource建立SSE(Server-Sent Events)连接
+   * 2. SSE是单向通信:服务器->客户端的实时数据推送
+   * 3. 使用AbortController支持中断请求
+   * 4. 三个核心回调:onopen(连接建立)、onmessage(接收消息)、onerror(错误处理)
+   */
   streamChat: async function ({ slug }, message, handleChat, attachments = []) {
+    // 🔥 步骤1: 创建中断控制器
+    // AbortController用于取消fetch请求,当用户点击"停止生成"按钮时使用
     const ctrl = new AbortController();
 
-    // Listen for the ABORT_STREAM_EVENT key to be emitted by the client
-    // to early abort the streaming response. On abort we send a special `stopGeneration`
-    // event to be handled which resets the UI for us to be able to send another message.
-    // The backend response abort handling is done in each LLM's handleStreamResponse.
+    // 🔥 步骤2: 监听中断事件
+    // 当用户点击停止按钮时,会触发ABORT_STREAM_EVENT事件
+    // 我们捕获这个事件并中断SSE连接
     window.addEventListener(ABORT_STREAM_EVENT, () => {
-      ctrl.abort();
+      ctrl.abort();  // 中断fetch请求
+      // 🔥 发送stopGeneration消息给handleChat,让UI知道停止了
       handleChat({ id: v4(), type: "stopGeneration" });
     });
 
+    // 🔥 步骤3: 建立SSE连接
+    // fetchEventSource是一个专门用于SSE的库,比原生fetch更易用
     await fetchEventSource(`${API_BASE}/workspace/${slug}/stream-chat`, {
       method: "POST",
-      body: JSON.stringify({ message, attachments }),
-      headers: baseHeaders(),
-      signal: ctrl.signal,
-      openWhenHidden: true,
+      body: JSON.stringify({ message, attachments }),  // 请求体:用户消息+附件
+      headers: baseHeaders(),                          // 请求头:包含认证token等
+      signal: ctrl.signal,                             // 绑定中断信号
+      openWhenHidden: true,                            // 即使页面隐藏也保持连接
+
+      // 🔥 回调1: 连接建立时触发
+      // 用于检查HTTP响应状态码,判断连接是否成功
       async onopen(response) {
         if (response.ok) {
-          return; // everything's good
+          // 连接成功(HTTP 200-299)
+          return;
         } else if (
           response.status >= 400 &&
           response.status < 500 &&
           response.status !== 429
         ) {
+          // 🔥 客户端错误(HTTP 400-499)
+          // 如:401未授权、403禁止、404未找到等
           handleChat({
             id: v4(),
             type: "abort",
             textResponse: null,
             sources: [],
             close: true,
-            error: `An error occurred while streaming response. Code ${response.status}`,
+            error: `流式响应发生错误。状态码: ${response.status}`,
           });
           ctrl.abort();
           throw new Error("Invalid Status code response.");
         } else {
+          // 🔥 其他错误(如HTTP 500+服务器错误)
           handleChat({
             id: v4(),
             type: "abort",
             textResponse: null,
             sources: [],
             close: true,
-            error: `An error occurred while streaming response. Unknown Error.`,
+            error: `流式响应发生错误。未知错误。`,
           });
           ctrl.abort();
           throw new Error("Unknown error");
         }
       },
+
+      // 🔥 🔥 🔥 回调2: 接收到SSE消息时触发
+      // 这是最核心的回调!每次服务器发送数据块都会触发
+      // 消息格式: data: {"type":"textResponseChunk","textResponse":"你好"}\n\n
       async onmessage(msg) {
         try {
+          // 🔥 解析SSE消息数据(JSON格式)
           const chatResult = JSON.parse(msg.data);
+
+          // 🔥 调用handleChat处理响应块
+          // handleChat会根据type字段进行不同的处理
+          // 常见type: textResponseChunk(流式块)、finalizeResponseStream(结束)、abort(中断)等
           handleChat(chatResult);
-        } catch {}
+        } catch (error) {
+          // JSON解析失败,静默忽略(可能是心跳包或其他非JSON消息)
+          console.error("解析SSE消息失败:", error);
+        }
       },
+
+      // 🔥 回调3: 发生错误时触发
+      // 如:网络中断、服务器崩溃、超时等
       onerror(err) {
         handleChat({
           id: v4(),
@@ -197,7 +262,7 @@ const Workspace = {
           textResponse: null,
           sources: [],
           close: true,
-          error: `An error occurred while streaming response. ${err.message}`,
+          error: `流式响应发生错误: ${err.message}`,
         });
         ctrl.abort();
         throw new Error();

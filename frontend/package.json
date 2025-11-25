@@ -1,5 +1,6 @@
 {
-  "name": "anything-llm-frontend",
+  "name": "dee-chat-frontend",
+  "version": "1.0.0",
   "private": false,
   "license": "MIT",
   "type": "module",

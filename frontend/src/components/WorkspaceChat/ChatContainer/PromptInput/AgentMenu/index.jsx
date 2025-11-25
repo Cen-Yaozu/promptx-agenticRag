@@ -110,6 +110,12 @@ export function AvailableAgents({
                   <AbilityTag text="list-documents" />
                   <AbilityTag text="summarize-document" />
                   <AbilityTag text="chart-generation" />
+                  <AbilityTag text="promptx-discover" />
+                  <AbilityTag text="promptx-action" />
+                  <AbilityTag text="promptx-recall" />
+                  <AbilityTag text="promptx-remember" />
+                  <AbilityTag text="promptx-project" />
+                  <AbilityTag text="promptx-toolx" />
                 </div>
               </div>
             </button>

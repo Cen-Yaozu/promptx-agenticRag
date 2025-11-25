@@ -195,11 +195,11 @@ function NewThreadButton({ workspace }) {
 
         {loading ? (
           <p className="text-left text-white light:text-theme-text-primary text-sm">
-            Starting Thread...
+            开始新对话...
           </p>
         ) : (
           <p className="text-left text-white light:text-theme-text-primary text-sm">
-            New Thread
+            新对话
           </p>
         )}
       </div>

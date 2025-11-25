@@ -1,0 +1,10 @@
+{
+  "name": "AnythingLLM",
+  "short_name": "AnythingLLM",
+  "description": "The best solution for turning private documents into a chat bot using off-the-shelf tools and commercially viable AI technologies.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "orientation": "portrait-primary"
+}

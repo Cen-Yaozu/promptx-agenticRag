@@ -39,6 +39,7 @@ const SUPPORT_CUSTOM_MODELS = [
   "foundry",
   "cohere",
   "zai",
+  "generic-openai",
   // Embedding Engines
   "native-embedder",
   "cohere-embedder",
@@ -103,6 +104,8 @@ async function getCustomModels(provider = "", apiKey = null, basePath = null) {
       return await getCohereModels(apiKey, "chat");
     case "zai":
       return await getZAiModels(apiKey);
+    case "generic-openai":
+      return await genericOpenAiModels(basePath, apiKey);
     case "native-embedder":
       return await getNativeEmbedderModels();
     case "cohere-embedder":
@@ -821,6 +824,58 @@ async function getZAiModels(_apiKey = null) {
 
   // Api Key was successful so lets save it for future uses
   if (models.length > 0 && !!apiKey) process.env.ZAI_API_KEY = apiKey;
+  return { models, error: null };
+}
+
+async function genericOpenAiModels(basePath = null, apiKey = null) {
+  let url;
+  try {
+    let urlPath = basePath ?? process.env.GENERIC_OPEN_AI_BASE_PATH;
+    new URL(urlPath);
+    if (urlPath.split("").slice(-1)?.[0] === "/")
+      urlPath = urlPath.slice(0, -1);
+    url = urlPath;
+  } catch {
+    return { models: [], error: "Not a valid URL." };
+  }
+
+  // 确保路径以 /v1 结尾,这是 OpenAI API 的标准
+  if (!url.endsWith("/v1")) {
+    if (url.endsWith("/")) {
+      url += "v1";
+    } else {
+      url += "/v1";
+    }
+  }
+
+  const { OpenAI: OpenAIApi } = require("openai");
+  const key = apiKey || process.env.GENERIC_OPEN_AI_API_KEY || null;
+
+  const openai = new OpenAIApi({
+    baseURL: url,
+    apiKey: key || "sk-dummy", // OpenAI SDK 要求有 API key,但如果不需要的话会被忽略
+  });
+
+  const models = await openai.models
+    .list()
+    .then((results) => results.data)
+    .catch((e) => {
+      console.error(`Generic OpenAI:listModels`, e.message);
+      // 如果 API 调用失败,返回空数组,不要提供写死的模型
+      console.error(`Error details:`, {
+        url: url,
+        hasApiKey: !!key,
+        error: e.message
+      });
+      return [];
+    });
+
+  // Api Key or URL was successful so lets save it for future uses
+  if (models.length > 0) {
+    if (apiKey) process.env.GENERIC_OPEN_AI_API_KEY = apiKey;
+    if (basePath) process.env.GENERIC_OPEN_AI_BASE_PATH = basePath;
+  }
+
   return { models, error: null };
 }
 

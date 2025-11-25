@@ -224,7 +224,7 @@ function OptionsMenu({
   const handleDelete = async () => {
     if (
       !window.confirm(
-        "Are you sure you want to delete this thread? All of its chats will be deleted. You cannot undo this."
+        "确定要删除这条对话记录吗？所有相关聊天将被永久删除，此操作不可恢复。"
       )
     )
       return;

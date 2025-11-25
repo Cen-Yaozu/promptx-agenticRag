@@ -52,6 +52,18 @@ export const NVIDIA_NIM_COMMON_URLS = [
   "http://172.17.0.1:8000/v1/version",
 ];
 
+export const GENERIC_OPENAI_COMMON_URLS = [
+  "http://localhost:8000/v1",
+  "http://127.0.0.1:8000/v1",
+  "http://localhost:8080/v1",
+  "http://127.0.0.1:8080/v1",
+  "http://localhost:3000/v1",
+  "http://127.0.0.1:3000/v1",
+  "http://localhost:8001/v1",
+  "http://127.0.0.1:8001/v1",
+  "https://your-proxy.com/v1", // 可以替换为你的云端中转站
+];
+
 export function fullApiUrl() {
   if (API_BASE !== "/api") return API_BASE;
   return `${window.location.origin}/api`;

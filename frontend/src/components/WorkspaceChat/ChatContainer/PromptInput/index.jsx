@@ -10,6 +10,7 @@ import AvailableAgentsButton, {
   AvailableAgents,
   useAvailableAgents,
 } from "./AgentMenu";
+import AgentModeToggle, { useAgentMode } from "./AgentModeToggle";
 import TextSizeButton from "./TextSizeMenu";
 import LLMSelectorAction from "./LLMSelector/action";
 import SpeechToText from "./SpeechToText";
@@ -41,6 +42,7 @@ export default function PromptInput({
   const [promptInput, setPromptInput] = useState("");
   const { showAgents, setShowAgents } = useAvailableAgents();
   const { showSlashCommand, setShowSlashCommand } = useSlashCommands();
+  const isAgentMode = useAgentMode();
   const formRef = useRef(null);
   const textareaRef = useRef(null);
   const [_, setFocused] = useState(false);
@@ -89,7 +91,24 @@ export default function PromptInput({
 
   function handleSubmit(e) {
     setFocused(false);
-    submit(e);
+
+    // 如果开启了 Agent 模式,自动在消息前添加 @agent
+    if (isAgentMode && !promptInput.trim().startsWith('@agent')) {
+      const agentMessage = '@agent ' + promptInput;
+      setPromptInput(agentMessage);
+
+      // 创建一个新的事件对象,包含修改后的消息
+      const newEvent = {
+        ...e,
+        target: {
+          ...e.target,
+          value: agentMessage
+        }
+      };
+      submit(newEvent);
+    } else {
+      submit(e);
+    }
   }
 
   function resetTextAreaHeight() {
@@ -324,10 +343,7 @@ export default function PromptInput({
                   showing={showSlashCommand}
                   setShowSlashCommand={setShowSlashCommand}
                 />
-                <AvailableAgentsButton
-                  showing={showAgents}
-                  setShowAgents={setShowAgents}
-                />
+                <AgentModeToggle />
                 <TextSizeButton />
                 <LLMSelectorAction />
               </div>

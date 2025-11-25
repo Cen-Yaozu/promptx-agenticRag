@@ -130,6 +130,9 @@ export default {
     vectorDatabase: () => {
       return "/settings/vector-database";
     },
+    promptx: () => {
+      return "/settings/promptx";
+    },
     security: () => {
       return "/settings/security";
     },

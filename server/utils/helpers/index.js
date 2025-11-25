@@ -123,36 +123,88 @@ function getVectorDbClass(getExactly = null) {
 }
 
 /**
- * Returns the LLMProvider with its embedder attached via system or via defined provider.
- * @param {{provider: string | null, model: string | null} | null} params - Initialize params for LLMs provider
- * @returns {BaseLLMProvider}
+ * 🔥 🔥 🔥 获取AI提供商实例
+ * 这是DeeChat后端最关键的工厂函数之一!
+ * 根据配置返回相应的AI提供商实例(OpenAI、Claude、Ollama等)
+ *
+ * @param {{provider: string | null, model: string | null} | null} params - 初始化参数
+ * @param {string|null} params.provider - AI提供商名称(如"openai", "anthropic", "ollama"等)
+ * @param {string|null} params.model - 模型名称(如"gpt-3.5-turbo", "claude-3-sonnet"等)
+ * @returns {BaseLLMProvider} AI提供商实例
+ *
+ * 配置优先级:
+ * 1. 传入的provider参数 (来自workspace.chatProvider)
+ * 2. 环境变量process.env.LLM_PROVIDER
+ * 3. 默认值"openai"
+ *
+ * 调用示例:
+ * ```javascript
+ * // 从工作空间配置获取AI提供商
+ * const LLMConnector = getLLMProvider({
+ *   provider: workspace.chatProvider,  // "openai" | "anthropic" | "ollama" | ...
+ *   model: workspace.chatModel         // "gpt-3.5-turbo" | "claude-3-sonnet" | ...
+ * });
+ *
+ * // 使用环境变量
+ * const LLMConnector = getLLMProvider();  // 使用process.env.LLM_PROVIDER
+ * ```
+ *
+ * 🔥 如果要写死AI提供商,可以修改这个函数:
+ * ```javascript
+ * function getLLMProvider({ provider = null, model = null } = {}) {
+ *   // 🔥 写死配置:强制使用Ollama + qwen2.5模型
+ *   const LLMSelection = "ollama";        // 写死提供商
+ *   const fixedModel = "qwen2.5:latest";  // 写死模型
+ *   const embedder = getEmbeddingEngineSelection();
+ *
+ *   const { OllamaAILLM } = require("../AiProviders/ollama");
+ *   return new OllamaAILLM(embedder, fixedModel);
+ * }
+ * ```
  */
 function getLLMProvider({ provider = null, model = null } = {}) {
+  // 🔥 确定使用哪个AI提供商
+  // 优先级: 传入参数 > 环境变量 > 默认值
   const LLMSelection = provider ?? process.env.LLM_PROVIDER ?? "openai";
+
+  // 🔥 获取嵌入引擎(用于向量化文本)
   const embedder = getEmbeddingEngineSelection();
 
+  // 🔥 根据提供商名称,动态加载并返回对应的AI提供商实例
+  // 这是工厂模式的典型应用
   switch (LLMSelection) {
+    // 商业云端AI提供商
     case "openai":
       const { OpenAiLLM } = require("../AiProviders/openAi");
-      return new OpenAiLLM(embedder, model);
+      return new OpenAiLLM(embedder, model);  // GPT-3.5, GPT-4等
     case "azure":
       const { AzureOpenAiLLM } = require("../AiProviders/azureOpenAi");
-      return new AzureOpenAiLLM(embedder, model);
+      return new AzureOpenAiLLM(embedder, model);  // Azure OpenAI服务
     case "anthropic":
       const { AnthropicLLM } = require("../AiProviders/anthropic");
-      return new AnthropicLLM(embedder, model);
+      return new AnthropicLLM(embedder, model);  // Claude系列
     case "gemini":
       const { GeminiLLM } = require("../AiProviders/gemini");
-      return new GeminiLLM(embedder, model);
+      return new GeminiLLM(embedder, model);  // Google Gemini
+
+    // 本地部署AI提供商
     case "lmstudio":
       const { LMStudioLLM } = require("../AiProviders/lmStudio");
-      return new LMStudioLLM(embedder, model);
+      return new LMStudioLLM(embedder, model);  // LM Studio本地服务
     case "localai":
       const { LocalAiLLM } = require("../AiProviders/localAi");
-      return new LocalAiLLM(embedder, model);
+      return new LocalAiLLM(embedder, model);  // LocalAI本地服务
     case "ollama":
       const { OllamaAILLM } = require("../AiProviders/ollama");
-      return new OllamaAILLM(embedder, model);
+      return new OllamaAILLM(embedder, model);  // 🔥 Ollama本地服务(推荐)
+    case "koboldcpp":
+      const { KoboldCPPLLM } = require("../AiProviders/koboldCPP");
+      return new KoboldCPPLLM(embedder, model);  // KoboldCpp本地服务
+    case "textgenwebui":
+      const { TextGenWebUILLM } = require("../AiProviders/textGenWebUI");
+      return new TextGenWebUILLM(embedder, model);  // Text Generation WebUI
+
+    // 第三方AI平台
     case "togetherai":
       const { TogetherAiLLM } = require("../AiProviders/togetherAi");
       return new TogetherAiLLM(embedder, model);
@@ -174,12 +226,6 @@ function getLLMProvider({ provider = null, model = null } = {}) {
     case "groq":
       const { GroqLLM } = require("../AiProviders/groq");
       return new GroqLLM(embedder, model);
-    case "koboldcpp":
-      const { KoboldCPPLLM } = require("../AiProviders/koboldCPP");
-      return new KoboldCPPLLM(embedder, model);
-    case "textgenwebui":
-      const { TextGenWebUILLM } = require("../AiProviders/textGenWebUI");
-      return new TextGenWebUILLM(embedder, model);
     case "cohere":
       const { CohereLLM } = require("../AiProviders/cohere");
       return new CohereLLM(embedder, model);
@@ -189,9 +235,22 @@ function getLLMProvider({ provider = null, model = null } = {}) {
     case "generic-openai":
       const { GenericOpenAiLLM } = require("../AiProviders/genericOpenAi");
       return new GenericOpenAiLLM(embedder, model);
+
+    // 企业级AI平台
     case "bedrock":
       const { AWSBedrockLLM } = require("../AiProviders/bedrock");
-      return new AWSBedrockLLM(embedder, model);
+      return new AWSBedrockLLM(embedder, model);  // AWS Bedrock
+    case "nvidia-nim":
+      const { NvidiaNimLLM } = require("../AiProviders/nvidiaNim");
+      return new NvidiaNimLLM(embedder, model);  // NVIDIA NIM
+    case "foundry":
+      const { FoundryLLM } = require("../AiProviders/foundry");
+      return new FoundryLLM(embedder, model);
+    case "dpais":
+      const { DellProAiStudioLLM } = require("../AiProviders/dellProAiStudio");
+      return new DellProAiStudioLLM(embedder, model);
+
+    // 其他AI提供商
     case "deepseek":
       const { DeepSeekLLM } = require("../AiProviders/deepseek");
       return new DeepSeekLLM(embedder, model);
@@ -204,30 +263,23 @@ function getLLMProvider({ provider = null, model = null } = {}) {
     case "xai":
       const { XAiLLM } = require("../AiProviders/xai");
       return new XAiLLM(embedder, model);
-    case "nvidia-nim":
-      const { NvidiaNimLLM } = require("../AiProviders/nvidiaNim");
-      return new NvidiaNimLLM(embedder, model);
     case "ppio":
       const { PPIOLLM } = require("../AiProviders/ppio");
       return new PPIOLLM(embedder, model);
     case "moonshotai":
       const { MoonshotAiLLM } = require("../AiProviders/moonshotAi");
       return new MoonshotAiLLM(embedder, model);
-    case "dpais":
-      const { DellProAiStudioLLM } = require("../AiProviders/dellProAiStudio");
-      return new DellProAiStudioLLM(embedder, model);
     case "cometapi":
       const { CometApiLLM } = require("../AiProviders/cometapi");
       return new CometApiLLM(embedder, model);
-    case "foundry":
-      const { FoundryLLM } = require("../AiProviders/foundry");
-      return new FoundryLLM(embedder, model);
     case "zai":
       const { ZAiLLM } = require("../AiProviders/zai");
       return new ZAiLLM(embedder, model);
+
+    // 默认分支:配置错误时抛出异常
     default:
       throw new Error(
-        `ENV: No valid LLM_PROVIDER value found in environment! Using ${process.env.LLM_PROVIDER}`
+        `ENV: 未找到有效的LLM_PROVIDER配置! 当前值: ${process.env.LLM_PROVIDER}`
       );
   }
 }

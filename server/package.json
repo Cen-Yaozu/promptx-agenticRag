@@ -1,9 +1,9 @@
 {
-  "name": "anything-llm-server",
-  "version": "1.9.0",
-  "description": "Server endpoints to process or create content for chatting",
+  "name": "dee-chat-server",
+  "version": "1.0.0",
+  "description": "DeeChat服务器端 - 提供智能对话服务API",
   "main": "index.js",
-  "author": "Timothy Carambat (Mintplex Labs)",
+  "author": "Deep Practice Team",
   "license": "MIT",
   "private": false,
   "engines": {

@@ -52,13 +52,13 @@ const TRANSLATIONS = {
       thankYou: "Thank you for your feedback!",
     },
     workspace: {
-      title: "Create your first workspace",
+      title: "创建您的第一个对话空间",
       description:
-        "Create your first workspace and get started with AnythingLLM.",
+        "创建您的第一个对话空间，开始使用DeeChat。",
     },
   },
   common: {
-    "workspaces-name": "Workspaces Name",
+    "workspaces-name": "对话空间名称",
     error: "error",
     success: "success",
     user: "User",
@@ -74,10 +74,10 @@ const TRANSLATIONS = {
   },
   home: {
     welcome: "Welcome",
-    chooseWorkspace: "Choose a workspace to start chatting!",
+    chooseWorkspace: "选择一个对话空间开始聊天！",
     notAssigned:
-      "You currently aren't assigned to any workspaces.\nPlease contact your administrator to request access to a workspace.",
-    goToWorkspace: 'Go to "{{workspace}}"',
+      "您目前还没有分配任何对话空间。\n请联系管理员为您开通对话空间权限。",
+    goToWorkspace: '进入 "{{workspace}}"',
   },
 
   // Setting Sidebar menu items.
@@ -86,8 +86,8 @@ const TRANSLATIONS = {
     system: "General Settings",
     invites: "Invites",
     users: "Users",
-    workspaces: "Workspaces",
-    "workspace-chats": "Workspace Chats",
+    workspaces: "对话空间",
+    "workspace-chats": "对话空间管理",
     customization: "Customization",
     interface: "UI Preferences",
     branding: "Branding & Whitelabeling",
@@ -95,10 +95,10 @@ const TRANSLATIONS = {
     "api-keys": "Developer API",
     llm: "LLM",
     transcription: "Transcription",
-    embedder: "Embedder",
+    embedder: "Document Indexer",
     "text-splitting": "Text Splitter & Chunking",
     "voice-speech": "Voice & Speech",
-    "vector-database": "Vector Database",
+    "vector-database": "Knowledge Base",
     embeds: "Chat Embed",
     "embed-chats": "Chat Embed History",
     security: "Security",
@@ -204,7 +204,7 @@ const TRANSLATIONS = {
         systemPrompts: {
           title: "System Prompts",
           description:
-            "Modify the system prompt to customize the AI replies of a workspace.",
+            "修改AI助手设定，自定义对话空间的回复风格。",
           primaryAction: "Modify a System Prompt",
           secondaryAction: "Manage prompt variables",
         },
@@ -241,7 +241,7 @@ const TRANSLATIONS = {
   general: {
     vector: {
       title: "Vector Count",
-      description: "Total number of vectors in your vector database.",
+      description: "知识库中索引的文档总数。",
     },
     names: {
       description: "This will only change the display name of your workspace.",
@@ -265,12 +265,12 @@ const TRANSLATIONS = {
     delete: {
       title: "Delete Workspace",
       description:
-        "Delete this workspace and all of its data. This will delete the workspace for all users.",
-      delete: "Delete Workspace",
-      deleting: "Deleting Workspace...",
+        "删除此对话空间及其所有数据。该删除操作将影响所有用户。",
+      delete: "删除对话空间",
+      deleting: "正在删除对话空间...",
       "confirm-start": "You are about to delete your entire",
       "confirm-end":
-        "workspace. This will remove all vector embeddings in your vector database.\n\nThe original source files will remain untouched. This action is irreversible.",
+        "对话空间。这将清除知识库中的所有文档索引。\n\n原始文档文件将保持不变，此操作不可恢复。",
     },
   },
 
@@ -367,12 +367,12 @@ const TRANSLATIONS = {
       high: "High (similarity score ≥ .75)",
     },
     reset: {
-      reset: "Reset Vector Database",
-      resetting: "Clearing vectors...",
+      reset: "重置知识库",
+      resetting: "正在清空知识库...",
       confirm:
-        "You are about to reset this workspace's vector database. This will remove all vector embeddings currently embedded.\n\nThe original source files will remain untouched. This action is irreversible.",
-      error: "Workspace vector database could not be reset!",
-      success: "Workspace vector database was reset!",
+        "您即将重置此对话空间的知识库。这将删除当前所有已索引的文档。\n\n原始文档文件将保持不变，此操作不可恢复。",
+      error: "对话空间知识库重置失败！",
+      success: "对话空间知识库重置成功！",
     },
   },
 
@@ -607,7 +607,7 @@ const TRANSLATIONS = {
     "desc-start":
       "When using an LLM that does not natively support an embedding engine - you may need to additionally specify credentials to for embedding text.",
     "desc-end":
-      "Embedding is the process of turning text into vectors. These credentials are required to turn your files and prompts into a format which AnythingLLM can use to process.",
+      "文档索引是将文档转换为可搜索格式的过程。这些凭证用于将您的文档和对话转换为DeeChat可以处理的格式。",
     provider: {
       title: "Embedding Provider",
     },
@@ -616,13 +616,13 @@ const TRANSLATIONS = {
   text: {
     title: "Text splitting & Chunking Preferences",
     "desc-start":
-      "Sometimes, you may want to change the default way that new documents are split and chunked before being inserted into your vector database.",
+      "有时候，您可能需要改变新文档在添加到知识库前的默认分段处理方式。",
     "desc-end":
       "You should only modify this setting if you understand how text splitting works and it's side effects.",
     size: {
       title: "Text Chunk Size",
       description:
-        "This is the maximum length of characters that can be present in a single vector.",
+        "这是单个文档索引段落的最大字符长度。",
       recommend: "Embed model maximum length is",
     },
 
@@ -953,6 +953,8 @@ const TRANSLATIONS = {
     at_agent: "@agent",
     default_agent_description: " - the default agent for this workspace.",
     custom_agents_coming_soon: "custom agents are coming soon!",
+    agent_mode_active: "Agent Mode (with tools)",
+    normal_mode_active: "Normal Chat Mode",
     slash_reset: "/reset",
     preset_reset_description: "Clear your chat history and begin a new chat",
     add_new_preset: " Add New Preset",
