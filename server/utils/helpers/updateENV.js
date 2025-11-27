@@ -1148,7 +1148,12 @@ async function updateENV(newENVs = {}, force = false, userId = null) {
   }
 
   await logChangesToEventLog(newValues, userId);
-  if (process.env.NODE_ENV === "production") dumpENV();
+
+  // 处理LLM配置的特殊逻辑
+  await handleLLMConfigUpdates(newValues, userId);
+
+  // 改进：开发环境也持久化配置，但写入对应的.env文件
+  dumpENV();
   return { newValues, error: error?.length > 0 ? error : false };
 }
 
@@ -1172,6 +1177,52 @@ async function logChangesToEventLog(newValues = {}, userId = null) {
     await EventLogs.logEvent(eventName, {}, userId);
   }
   return;
+}
+
+/**
+ * 处理LLM配置的特殊逻辑
+ * 当检测到LLM相关配置更新时，记录配置上下文信息
+ * @param {Object} newValues - 新的配置值
+ * @param {number} userId - 用户ID
+ */
+async function handleLLMConfigUpdates(newValues = {}, userId = null) {
+  try {
+    // 检查是否有LLM相关的配置更新
+    const llmConfigKeys = [
+      'LLMProvider', 'OpenAiKey', 'OpenAiModelPref',
+      'AnthropicApiKey', 'AnthropicModelPref',
+      'GeminiLLMApiKey', 'GeminiLLMModelPref',
+      'AzureOpenAiKey', 'AzureOpenAiEndpoint', 'AzureOpenAiModelPref',
+      // 添加更多LLM相关的配置键...
+    ];
+
+    const hasLLMUpdates = Object.keys(newValues).some(key =>
+      llmConfigKeys.includes(key)
+    );
+
+    if (!hasLLMUpdates) {
+      return; // 没有LLM配置更新，直接返回
+    }
+
+    // 记录LLM配置更新事件
+    const { EventLogs } = require("../../models/eventLogs");
+    await EventLogs.logEvent("llm_config_updated", {
+      updatedKeys: Object.keys(newValues).filter(key => llmConfigKeys.includes(key)),
+      timestamp: new Date().toISOString()
+    }, userId);
+
+    console.log('检测到LLM配置更新:', {
+      updatedKeys: Object.keys(newValues).filter(key => llmConfigKeys.includes(key)),
+      userId
+    });
+
+    // 这里可以添加更多的LLM配置特殊处理逻辑
+    // 例如：清理缓存、通知相关服务等
+
+  } catch (error) {
+    console.error('处理LLM配置更新时出错:', error.message);
+    // 不抛出错误，避免影响主要的配置更新流程
+  }
 }
 
 function dumpENV() {
@@ -1251,12 +1302,16 @@ function dumpENV() {
     .map(([key, value]) => `${key}='${sanitizeValue(value)}'`)
     .join("\n");
 
-  const envPath = path.join(__dirname, "../../.env");
+  // 根据环境变量确定文件路径
+  const envFileName = process.env.NODE_ENV === "production" ? ".env" : `.env.${process.env.NODE_ENV}`;
+  const envPath = path.join(__dirname, `../../${envFileName}`);
   fs.writeFileSync(envPath, envResult, { encoding: "utf8", flag: "w" });
+  console.log(`配置已保存到: ${envPath}`);
   return true;
 }
 
 module.exports = {
   dumpENV,
   updateENV,
+  handleLLMConfigUpdates,
 };

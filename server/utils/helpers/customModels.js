@@ -831,21 +831,30 @@ async function genericOpenAiModels(basePath = null, apiKey = null) {
   let url;
   try {
     let urlPath = basePath ?? process.env.GENERIC_OPEN_AI_BASE_PATH;
+    console.log(`[Generic OpenAI] 原始路径: ${urlPath}`);
     new URL(urlPath);
-    if (urlPath.split("").slice(-1)?.[0] === "/")
-      urlPath = urlPath.slice(0, -1);
-    url = urlPath;
-  } catch {
-    return { models: [], error: "Not a valid URL." };
-  }
 
-  // 确保路径以 /v1 结尾,这是 OpenAI API 的标准
-  if (!url.endsWith("/v1")) {
-    if (url.endsWith("/")) {
-      url += "v1";
-    } else {
-      url += "/v1";
+    // 优化路径处理：智能处理 /v1 后缀
+    if (urlPath.endsWith("/")) {
+      // 如果以 / 结尾，移除多余的 /
+      urlPath = urlPath.slice(0, -1);
+      console.log(`[Generic OpenAI] 移除末尾斜杠后: ${urlPath}`);
     }
+
+    // 检查是否已经包含 /v1
+    if (!urlPath.endsWith("/v1")) {
+      // 如果没有 /v1 后缀，添加它
+      urlPath = urlPath + "/v1";
+      console.log(`[Generic OpenAI] 添加 /v1 后缀后: ${urlPath}`);
+    } else {
+      console.log(`[Generic OpenAI] 已包含 /v1 后缀，无需修改: ${urlPath}`);
+    }
+
+    url = urlPath;
+    console.log(`[Generic OpenAI] 最终API地址: ${url}`);
+  } catch {
+    console.error(`[Generic OpenAI] 无效的URL: ${basePath || process.env.GENERIC_OPEN_AI_BASE_PATH}`);
+    return { models: [], error: "Not a valid URL." };
   }
 
   const { OpenAI: OpenAIApi } = require("openai");
@@ -861,12 +870,24 @@ async function genericOpenAiModels(basePath = null, apiKey = null) {
     .then((results) => results.data)
     .catch((e) => {
       console.error(`Generic OpenAI:listModels`, e.message);
-      // 如果 API 调用失败,返回空数组,不要提供写死的模型
+      // 改进的错误信息，帮助用户诊断问题
       console.error(`Error details:`, {
-        url: url,
+        originalBasePath: basePath || process.env.GENERIC_OPEN_AI_BASE_PATH,
+        finalUrl: url,
         hasApiKey: !!key,
+        apiKeyLength: key ? key.length : 0,
         error: e.message
       });
+
+      // 根据错误类型提供更具体的建议
+      if (e.message.includes('ECONNREFUSED') || e.message.includes('ENOTFOUND')) {
+        console.error(`建议：请检查服务器地址是否正确，服务器是否正在运行`);
+      } else if (e.message.includes('401') || e.message.includes('403')) {
+        console.error(`建议：请检查API Key是否正确`);
+      } else if (e.message.includes('404')) {
+        console.error(`建议：请检查API路径是否正确，应该以 /v1 结尾`);
+      }
+
       return [];
     });
 

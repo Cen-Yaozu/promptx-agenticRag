@@ -39,6 +39,9 @@ export default function handleChat(
     metrics = {},      // 性能指标数据
   } = chatResult;
 
+  // 🔥 调试：打印每个响应
+  console.log(`[聊天处理] 收到响应，type: ${type}, uuid: ${uuid}`);
+
   // ==================== 响应类型处理 ====================
 
   // 🔥 处理1：中断响应和状态响应
@@ -214,7 +217,13 @@ export default function handleChat(
   else if (type === "agentInitWebsocketConnection") {
     // 🔥 Agent WebSocket连接初始化
     console.log(`[聊天处理] 初始化Agent WebSocket连接`);
-    setWebsocket(chatResult.websocketUUID);
+    console.log(`[聊天处理] 收到的完整响应数据:`, chatResult);
+    console.log(`[聊天处理] websocketUUID字段:`, chatResult.websocketUUID);
+    console.log(`[聊天处理] setSocketId函数类型:`, typeof setSocketId);
+
+    const result = setSocketId(chatResult.websocketUUID);
+    console.log(`[聊天处理] setSocketId调用结果:`, result);
+    console.log(`[聊天处理] 准备调用setSocketId，参数:`, chatResult.websocketUUID);
   }
   // 🔥 处理5：停止生成响应
   else if (type === "stopGeneration") {

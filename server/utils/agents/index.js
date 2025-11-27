@@ -361,13 +361,80 @@ class AgentHandler {
   }
 
   #providerSetupAndCheck() {
-    this.provider = this.invocation.workspace.agentProvider ?? null; // set provider to workspace agent provider if it exists
-    this.model = this.#fetchModel();
+    // 🔥 统一的配置读取，支持完整的fallback链
+    const config = this.#getUnifiedConfig();
+    this.provider = config.provider;
+    this.model = config.model;
 
     if (!this.provider)
-      throw new Error("No valid provider found for the agent.");
+      throw new Error(`Agent模式需要配置LLM供应商。当前配置状态：
+- 工作空间配置: ${this.invocation.workspace.chatProvider || '未配置'}
+- 系统配置: ${process.env.LLM_PROVIDER || '未配置'}
+
+请到 工作空间设置 → Chat Settings 中配置LLM供应商`);
     this.log(`Start ${this.#invocationUUID}::${this.provider}:${this.model}`);
     this.checkSetup();
+  }
+
+  /**
+   * 🔥 统一配置读取 - 支持"配置一次，到处使用"
+   * 优先级：Agent专用 → 工作空间通用 → 系统默认 → 硬编码默认
+   */
+  #getUnifiedConfig() {
+    return this.#getAgentConfig() ||
+           this.#getWorkspaceChatConfig() ||
+           this.#getSystemDefaultConfig() ||
+           this.#getHardcodedDefault();
+  }
+
+  /**
+   * 获取Agent专用配置
+   */
+  #getAgentConfig() {
+    const agentProvider = this.invocation.workspace.agentProvider;
+    const agentModel = this.invocation.workspace.agentModel;
+
+    if (agentProvider && agentModel) {
+      this.log("使用Agent专用配置");
+      return { provider: agentProvider, model: agentModel };
+    }
+    return null;
+  }
+
+  /**
+   * 获取工作空间通用配置（这是fallback的关键！）
+   */
+  #getWorkspaceChatConfig() {
+    const chatProvider = this.invocation.workspace.chatProvider;
+    const chatModel = this.invocation.workspace.chatModel;
+
+    if (chatProvider && chatModel) {
+      this.log("回退到工作空间通用配置");
+      return { provider: chatProvider, model: chatModel };
+    }
+    return null;
+  }
+
+  /**
+   * 获取系统默认配置
+   */
+  #getSystemDefaultConfig() {
+    const systemProvider = process.env.LLM_PROVIDER;
+    const systemModel = this.providerDefault(systemProvider);
+
+    if (systemProvider && systemModel) {
+      this.log("回退到系统默认配置");
+      return { provider: systemProvider, model: systemModel };
+    }
+    return null;
+  }
+
+  /**
+   * 硬编码默认配置（最后的保障）
+   */
+  #getHardcodedDefault() {
+    this.log("使用硬编码默认配置");
+    return { provider: "openai", model: "gpt-3.5-turbo" };
   }
 
   async #validInvocation() {
@@ -549,8 +616,12 @@ class AgentHandler {
   }
 
   async init() {
+    this.log("=== AgentHandler init 开始 ===");
     await this.#validInvocation();
+    this.log("✓ #validInvocation 完成");
     this.#providerSetupAndCheck();
+    this.log("✓ #providerSetupAndCheck 完成");
+    this.log("=== AgentHandler init 成功 ===");
     return this;
   }
 

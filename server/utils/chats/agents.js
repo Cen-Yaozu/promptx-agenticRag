@@ -12,7 +12,13 @@ async function grepAgents({
   user = null,
   thread = null,
 }) {
+  console.log(`[Agent检测] 收到消息: "${message}"`);
+  console.log(`[Agent检测] 消息长度: ${message.length}`);
+  console.log(`[Agent检测] 消息开头检查: "${message.substring(0, 20)}..."`);
+
   const agentHandles = WorkspaceAgentInvocation.parseAgents(message);
+  console.log(`[Agent检测] 解析结果:`, agentHandles);
+
   if (agentHandles.length > 0) {
     const { invocation: newInvocation } = await WorkspaceAgentInvocation.new({
       prompt: message,

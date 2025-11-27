@@ -324,20 +324,40 @@ useEffect(() => {
  * Agent功能是DeeChat的高级功能，允许AI执行复杂的任务流程
  */
 useEffect(() => {
+  console.log(`[WebSocket] useEffect被触发，socketId: ${socketId}`);
   /**
    * 🔥 处理WebSocket连接的函数
    * 负责建立、管理和关闭Agent WebSocket连接
    */
   function handleWSS() {
+    console.log(`[WebSocket] handleWSS被调用`);
+    console.log(`[WebSocket] socketId: ${socketId}`);
+    console.log(`[WebSocket] websocket: ${!!websocket}`);
+
     try {
       // 如果没有socketId或已有连接，不重复建立连接
-      if (!socketId || !!websocket) return;
+      if (!socketId || !!websocket) {
+        console.log(`[WebSocket] 跳过连接 - socketId: ${socketId}, websocket: ${!!websocket}`);
+        return;
+      }
 
       // 🔥 建立WebSocket连接到Agent服务端点
-      const socket = new WebSocket(
-        `${websocketURI()}/api/agent-invocation/${socketId}`
-      );
+      const wsUrl = `${websocketURI()}/api/agent-invocation/${socketId}`;
+      console.log(`[WebSocket] websocketURI()返回: ${websocketURI()}`);
+      console.log(`[WebSocket] 尝试连接: ${wsUrl}`);
+
+      const socket = new WebSocket(wsUrl);
       socket.supportsAgentStreaming = false;  // 标记是否支持流式Agent响应
+
+      // 🔥 WebSocket连接状态监听
+      socket.addEventListener("open", () => {
+        console.log(`[WebSocket] 连接成功: ${wsUrl}`);
+      });
+
+      socket.addEventListener("error", (error) => {
+        console.error(`[WebSocket] 连接失败:`, error);
+        console.error(`[WebSocket] 连接URL: ${wsUrl}`);
+      });
 
       // 🔥 监听中断事件：用户主动中断Agent会话
       window.addEventListener(ABORT_STREAM_EVENT, () => {
@@ -417,7 +437,10 @@ useEffect(() => {
       // 清理状态
       setLoadingResponse(false);
       setWebsocket(null);
-      setSocketId(null);
+      // 🔥 只有当确实有WebSocket连接时才清理socketId，避免清理函数在effect执行时重置状态
+      if (websocket) {
+        setSocketId(null);
+      }
     }
   }
 

@@ -29,6 +29,7 @@ const { communityHubEndpoints } = require("./endpoints/communityHub");
 const { agentFlowEndpoints } = require("./endpoints/agentFlows");
 const { mcpServersEndpoints } = require("./endpoints/mcpServers");
 const { mobileEndpoints } = require("./endpoints/mobile");
+const { deeconfigEndpoints } = require("./endpoints/deeconfig");
 const { httpLogger } = require("./middleware/httpLogger");
 const app = express();
 const apiRouter = express.Router();
@@ -79,6 +80,7 @@ communityHubEndpoints(apiRouter);
 agentFlowEndpoints(apiRouter);
 mcpServersEndpoints(apiRouter);
 mobileEndpoints(apiRouter);
+deeconfigEndpoints(apiRouter);
 
 // Externally facing embedder endpoints
 embeddedEndpoints(apiRouter);
