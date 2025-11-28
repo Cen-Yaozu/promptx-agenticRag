@@ -70,6 +70,7 @@ const WorkspaceAgentInvocation = {
   },
 
   getWithWorkspace: async function (clause = {}) {
+    console.log(`[getWithWorkspace] 开始查询，clause:`, clause);
     try {
       const invocation = await prisma.workspace_agent_invocations.findFirst({
         where: clause,
@@ -78,9 +79,17 @@ const WorkspaceAgentInvocation = {
         },
       });
 
+      console.log(`[getWithWorkspace] 查询结果:`, invocation ? {
+        uuid: invocation.uuid,
+        workspace_id: invocation.workspace_id,
+        workspace: invocation.workspace ? { id: invocation.workspace.id } : 'null',
+        closed: invocation.closed
+      } : 'null');
+
       return invocation || null;
     } catch (error) {
-      console.error(error.message);
+      console.error(`[getWithWorkspace] ❌ 查询失败:`, error.message);
+      console.error(`[getWithWorkspace] 错误详情:`, error);
       return null;
     }
   },
