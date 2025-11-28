@@ -5,7 +5,7 @@ const { WorkspaceChats } = require("../../models/workspaceChats");         // �
 const { WorkspaceParsedFiles } = require("../../models/workspaceParsedFiles"); // 文件解析记录模型
 const { getVectorDbClass, getLLMProvider } = require("../helpers");        // 工具函数：获取向量数据库和AI提供商
 const { writeResponseChunk } = require("../helpers/chat/responses");       // SSE响应写入工具
-const { grepAgents } = require("./agents");                                // Agent处理函数
+const { triggerAgentMode } = require("./agents");                            // 🔥 新的Agent处理函数
 const {
   grepCommand,                 // 命令识别函数（如/help, /clear等）
   VALID_COMMANDS,               // 有效命令列表
@@ -38,7 +38,8 @@ async function streamChatWithWorkspace(
   chatMode = "chat",    // 默认为普通聊天模式
   user = null,
   thread = null,
-  attachments = []
+  attachments = [],
+  isAgentMode = false   // 🔥 新增：Agent模式标志，由前端按钮状态控制
 ) {
   // 🔥 生成唯一会话标识符
   const uuid = uuidv4();
@@ -63,21 +64,27 @@ async function streamChatWithWorkspace(
     return;
   }
 
-  // 🔥 第二步：检查是否为Agent聊天（高级功能）
+  // 🔥 第二步：检查是否为Agent模式（基于前端按钮状态）
   // Agent功能允许AI执行复杂的任务流程
-  const isAgentChat = await grepAgents({
-    uuid,
-    response,
-    message: updatedMessage,
-    user,
-    workspace,
-    thread,
-  });
+  if (isAgentMode) {
+    console.log(`[流式聊天] 前端请求Agent模式，启动Agent处理流程`);
 
-  // 如果是Agent聊天，Agent会接管后续处理，这里直接返回
-  if (isAgentChat) {
-    console.log(`[流式聊天] Agent模式已激活，跳过普通聊天流程`);
-    return;
+    const agentStarted = await triggerAgentMode({
+      uuid,
+      response,
+      message: updatedMessage,
+      workspace,  // 🔥 修正参数顺序：workspace在前
+      user,       // 🔥 修正参数顺序：user在后
+      thread,
+    });
+
+    // 如果Agent成功启动，Agent会接管后续处理，这里直接返回
+    if (agentStarted) {
+      console.log(`[流式聊天] Agent模式启动成功，跳过普通聊天流程`);
+      return;
+    } else {
+      console.log(`[流式聊天] Agent模式启动失败，继续普通聊天流程`);
+    }
   }
 
   // 🔥 第三步：初始化AI提供商和向量数据库

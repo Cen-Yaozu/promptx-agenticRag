@@ -134,7 +134,7 @@ export function ManagerRoute({ Component }) {
   );
 }
 
-export default function PrivateRoute({ Component }) {
+export default function PrivateRoute({ Component, ...props }) {
   const { isAuthd, shouldRedirectToOnboarding } = useIsAuthenticated();
   if (isAuthd === null) return <FullScreenLoader />;
 
@@ -145,7 +145,7 @@ export default function PrivateRoute({ Component }) {
   return isAuthd ? (
     <KeyboardShortcutWrapper>
       <UserMenu>
-        <Component />
+        <Component {...props} />
       </UserMenu>
     </KeyboardShortcutWrapper>
   ) : (

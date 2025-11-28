@@ -26,15 +26,17 @@ export default function WorkspaceChat({ loading, workspace }) {
         return false;
       }
 
+      console.log(`[WorkspaceChat] 开始加载聊天历史，工作区: ${workspace.slug}, 线程: ${threadSlug || 'none'}`);
       const chatHistory = threadSlug
         ? await Workspace.threads.chatHistory(workspace.slug, threadSlug)
         : await Workspace.chatHistory(workspace.slug);
 
+      console.log(`[WorkspaceChat] ✅ 聊天历史加载完成，消息数: ${chatHistory?.length || 0}`);
       setHistory(chatHistory);
       setLoadingHistory(false);
     }
     getHistory();
-  }, [workspace, loading]);
+  }, [workspace, loading, threadSlug]); // 🔥 添加threadSlug依赖，线程切换时重新加载
 
   if (loadingHistory) return <LoadingChat />;
   if (!loading && !loadingHistory && !workspace) {

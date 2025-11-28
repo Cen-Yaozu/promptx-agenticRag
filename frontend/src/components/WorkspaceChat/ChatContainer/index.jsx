@@ -23,6 +23,7 @@ import SpeechRecognition, {
 } from "react-speech-recognition";                                         // 语音识别功能
 import { ChatTooltips } from "./ChatTooltips";                              // 聊天提示组件
 import { MetricsProvider } from "./ChatHistory/HistoricalMessage/Actions/RenderMetrics"; // 指标数据提供者
+import { useAgentMode } from "./PromptInput/AgentModeToggle";               // Agent 模式状态 Hook
 
 // ==================== 聊天容器组件 ====================
 /**
@@ -41,6 +42,7 @@ export default function ChatContainer({ workspace, knownHistory = [] }) {
   const [socketId, setSocketId] = useState(null);               // WebSocket连接ID（用于Agent功能）
   const [websocket, setWebsocket] = useState(null);              // WebSocket连接实例
   const { files, parseAttachments } = useContext(DndUploaderContext); // 文件拖拽上传上下文
+  const isAgentMode = useAgentMode();                            // 🔥 获取Agent模式状态
 
   // ==================== 事件处理函数 ====================
 
@@ -253,6 +255,10 @@ useEffect(() => {
    * 这个函数负责与后端建立SSE连接，接收AI的流式回答
    */
   async function fetchReply() {
+    console.log(`[fetchReply] 函数被调用，chatHistory长度: ${chatHistory.length}`);
+    console.log(`[fetchReply] isAgentMode: ${isAgentMode}`);
+    console.log(`[fetchReply] workspace:`, workspace ? { id: workspace.id, name: workspace.name } : 'null');
+
     // 获取最后一条待处理的消息
     const promptMessage =
       chatHistory.length > 0 ? chatHistory[chatHistory.length - 1] : null;
@@ -263,21 +269,31 @@ useEffect(() => {
     // 创建历史记录的副本，用于传递给聊天处理函数
     var _chatHistory = [...remHistory];
 
-    // 🔥 Agent模式处理：如果有活跃的WebSocket连接，消息通过Agent处理
-    if (!!websocket) {
+    // 🔥 Agent模式处理：根据按钮状态决定是否使用Agent
+    if (isAgentMode) {
       if (!promptMessage || !promptMessage?.userMessage) return false;
 
       // 清除附件显示
       window.dispatchEvent(new CustomEvent(CLEAR_ATTACHMENTS_EVENT));
 
-      // 通过WebSocket发送用户反馈给Agent
-      websocket.send(
-        JSON.stringify({
-          type: "awaitingFeedback",
-          feedback: promptMessage?.userMessage,
-        })
-      );
-      return;
+      // 如果有WebSocket连接，通过WebSocket发送消息
+      if (websocket) {
+        console.log(`[fetchReply] 🔥 通过WebSocket发送Agent消息`);
+        websocket.send(
+          JSON.stringify({
+            type: "awaitingFeedback",
+            feedback: promptMessage?.userMessage,
+          })
+        );
+        return;
+      }
+
+      // 如果没有WebSocket连接，生成socketId并继续发送消息到后端
+      // 让后端创建Agent会话
+      const tempSocketId = v4(); // 生成临时ID用于Agent连接
+      setSocketId(tempSocketId);
+      console.log(`[fetchReply] 🔥 生成socketId: ${tempSocketId}，通过HTTP发送Agent消息`);
+      // 🔥 不要return，继续执行普通流程，让后端处理Agent模式
     }
 
     // 🔥 普通AI模式处理
@@ -291,6 +307,15 @@ useEffect(() => {
 
     // 清除附件显示区域
     window.dispatchEvent(new CustomEvent(CLEAR_ATTACHMENTS_EVENT));
+
+    // 🔥 检查workspace是否有效
+    if (!workspace || !workspace.slug) {
+      console.error(`[fetchReply] ❌ workspace无效:`, workspace);
+      setLoadingResponse(false);
+      return;
+    }
+
+    console.log(`[fetchReply] 🔥 准备调用Workspace.multiplexStream，workspaceSlug: ${workspace.slug}`);
 
     // 🔥 🔥 🔥 核心：调用工作空间的流式聊天API
     // 这是整个DeeChat聊天功能的核心入口点！
@@ -308,6 +333,7 @@ useEffect(() => {
           setSocketId              // 设置WebSocket ID（用于Agent功能）
         ),
       attachments,                  // 附件文件
+      isAgentMode,                  // 🔥 Agent模式状态，由按钮控制
     });
     return;
   }
@@ -323,6 +349,19 @@ useEffect(() => {
  * 当socketId状态变化时，建立或管理Agent WebSocket连接
  * Agent功能是DeeChat的高级功能，允许AI执行复杂的任务流程
  */
+useEffect(() => {
+  // 🔥 清理函数：组件卸载时关闭WebSocket连接
+  return () => {
+    if (websocket) {
+      console.log(`[WebSocket] 清理：关闭现有连接`);
+      websocket.close();
+      setWebsocket(null);
+    }
+    setSocketId(null);
+  };
+}, []);
+
+// 🔥 WebSocket连接建立Effect
 useEffect(() => {
   console.log(`[WebSocket] useEffect被触发，socketId: ${socketId}`);
   /**

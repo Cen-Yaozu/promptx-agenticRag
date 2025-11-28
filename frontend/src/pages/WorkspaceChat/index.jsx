@@ -27,11 +27,17 @@ function ShowWorkspaceChat() {
   useEffect(() => {
     async function getWorkspace() {
       if (!slug) return;
+      console.log(`[WorkspaceChat] 开始加载工作区: ${slug}`);
       const _workspace = await Workspace.bySlug(slug);
-      if (!_workspace) return setLoading(false);
+      if (!_workspace) {
+        console.log(`[WorkspaceChat] 工作区不存在: ${slug}`);
+        setLoading(false);
+        return;
+      }
 
       const suggestedMessages = await Workspace.getSuggestedMessages(slug);
       const pfpUrl = await Workspace.fetchPfp(slug);
+      console.log(`[WorkspaceChat] ✅ 工作区加载成功: ${_workspace.name}`);
       setWorkspace({
         ..._workspace,
         suggestedMessages,
@@ -47,7 +53,7 @@ function ShowWorkspaceChat() {
       );
     }
     getWorkspace();
-  }, []);
+  }, [slug]); // 🔥 添加slug依赖，工作区切换时重新加载
 
   return (
     <>

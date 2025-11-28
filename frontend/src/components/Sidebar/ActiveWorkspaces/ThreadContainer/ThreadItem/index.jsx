@@ -9,7 +9,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 
 const THREAD_CALLOUT_DETAIL_WIDTH = 26;
 export default function ThreadItem({
@@ -24,6 +24,7 @@ export default function ThreadItem({
   ctrlPressed = false,
 }) {
   const { slug, threadSlug = null } = useParams();
+  const navigate = useNavigate();
   const optionsContainer = useRef(null);
   const [showOptions, setShowOptions] = useState(false);
   const linkTo = !thread.slug
@@ -87,8 +88,8 @@ export default function ThreadItem({
             )}
           </div>
         ) : (
-          <a
-            href={
+          <Link
+            to={
               window.location.pathname === linkTo || ctrlPressed ? "#" : linkTo
             }
             data-tooltip-id="workspace-thread-name"
@@ -103,7 +104,7 @@ export default function ThreadItem({
             >
               {thread.name}
             </p>
-          </a>
+          </Link>
         )}
         {!!thread.slug && !thread.deleted && (
           <div ref={optionsContainer} className="flex items-center">
@@ -161,6 +162,7 @@ function OptionsMenu({
   close,
   currentThreadSlug,
 }) {
+  const navigate = useNavigate();
   const menuRef = useRef(null);
 
   // Ref menu options
@@ -238,7 +240,7 @@ function OptionsMenu({
       onRemove(thread.id);
       // Redirect if deleting the active thread
       if (currentThreadSlug === thread.slug) {
-        window.location.href = paths.workspace.chat(workspace.slug);
+        navigate(paths.workspace.chat(workspace.slug));
       }
       return;
     }

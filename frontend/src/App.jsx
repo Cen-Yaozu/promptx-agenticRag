@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import { I18nextProvider } from "react-i18next";
 import { AuthProvider } from "@/AuthContext";
 import PrivateRoute, {
@@ -95,6 +95,8 @@ const MobileConnections = lazy(
 );
 
 export default function App() {
+  const location = useLocation();
+
   return (
     <ThemeProvider>
       <PWAModeProvider>
@@ -120,11 +122,15 @@ export default function App() {
                     />
                     <Route
                       path="/workspace/:slug"
-                      element={<PrivateRoute Component={WorkspaceChat} />}
+                      element={
+                        <PrivateRoute Component={WorkspaceChat} key={`workspace-${location.pathname}`} />
+                      }
                     />
                     <Route
                       path="/workspace/:slug/t/:threadSlug"
-                      element={<PrivateRoute Component={WorkspaceChat} />}
+                      element={
+                        <PrivateRoute Component={WorkspaceChat} key={`workspace-${location.pathname}`} />
+                      }
                     />
                     <Route
                       path="/accept-invite/:code"
