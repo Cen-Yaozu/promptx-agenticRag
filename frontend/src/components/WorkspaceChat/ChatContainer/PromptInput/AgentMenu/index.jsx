@@ -4,6 +4,7 @@ import { At } from "@phosphor-icons/react";
 import { useIsAgentSessionActive } from "@/utils/chat/agent";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
+import { AGENT_MODE_TOGGLE_EVENT } from "../AgentModeToggle";
 
 export default function AvailableAgentsButton({ showing, setShowAgents }) {
   const { t } = useTranslation();
@@ -80,7 +81,12 @@ export function AvailableAgents({
 
   const handleAgentClick = () => {
     setShowing(false);
-    sendCommand({ text: "@agent " });
+    // 🔥 触发 Agent 模式切换，而不是发送 @agent 前缀
+    window.dispatchEvent(
+      new CustomEvent(AGENT_MODE_TOGGLE_EVENT, {
+        detail: { isAgentMode: true }
+      })
+    );
     promptRef?.current?.focus();
   };
 

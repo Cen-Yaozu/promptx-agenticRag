@@ -55,7 +55,7 @@ function chatEndpoints(app) {
       try {
         // 🔥 步骤1: 获取用户和请求数据
         const user = await userFromSession(request, response);  // 从session获取当前用户
-        const { message, attachments = [] } = reqBody(request); // 提取请求体数据
+        const { message, attachments = [], isAgentMode = false } = reqBody(request); // 提取请求体数据，包含Agent模式状态
         const workspace = response.locals.workspace;            // 从中间件获取工作空间对象
 
         // 🔥 步骤2: 验证消息内容
@@ -102,7 +102,8 @@ function chatEndpoints(app) {
           workspace?.chatMode,  // 聊天模式: "chat"(普通对话) 或 "query"(文档查询)
           user,                 // 用户对象
           null,                 // 线程对象(null表示工作空间级别聊天)
-          attachments           // 附件列表
+          attachments,          // 附件列表
+          isAgentMode           // 🔥 Agent模式状态，由前端按钮控制
         );
 
         // 🔥 步骤6: 记录遥测数据
@@ -156,7 +157,7 @@ function chatEndpoints(app) {
     async (request, response) => {
       try {
         const user = await userFromSession(request, response);
-        const { message, attachments = [] } = reqBody(request);
+        const { message, attachments = [], isAgentMode = false } = reqBody(request);
         const workspace = response.locals.workspace;
         const thread = response.locals.thread;
 
@@ -197,7 +198,8 @@ function chatEndpoints(app) {
           workspace?.chatMode,
           user,
           thread,
-          attachments
+          attachments,
+          isAgentMode  // 🔥 Agent模式状态，由前端按钮控制
         );
 
         // If thread was renamed emit event to frontend via special `action` response.

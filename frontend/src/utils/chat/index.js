@@ -15,7 +15,7 @@ export const ABORT_STREAM_EVENT = "abort-chat-stream";  // 中断聊天流的自
  * @param {Function} setChatHistory - 设置聊天历史的函数
  * @param {Array} remHistory - 移除最后一条消息后的历史记录
  * @param {Array} _chatHistory - 当前聊天历史记录（会被修改）
- * @param {Function} setWebsocket - 设置WebSocket连接的函数
+ * @param {Function} setSocketId - 设置WebSocket连接ID的函数 (用于Agent模式)
  */
 export default function handleChat(
   chatResult,
@@ -23,7 +23,7 @@ export default function handleChat(
   setChatHistory,
   remHistory,
   _chatHistory,
-  setWebsocket
+  setSocketId
 ) {
   // 🔥 解构聊天响应数据
   const {
@@ -221,9 +221,13 @@ export default function handleChat(
     console.log(`[聊天处理] websocketUUID字段:`, chatResult.websocketUUID);
     console.log(`[聊天处理] setSocketId函数类型:`, typeof setSocketId);
 
-    const result = setSocketId(chatResult.websocketUUID);
-    console.log(`[聊天处理] setSocketId调用结果:`, result);
-    console.log(`[聊天处理] 准备调用setSocketId，参数:`, chatResult.websocketUUID);
+    // 🔥 设置WebSocket ID,这将触发WebSocket连接的建立
+    if (typeof setSocketId === 'function') {
+      setSocketId(chatResult.websocketUUID);
+      console.log(`[聊天处理] ✅ 已设置socketId:`, chatResult.websocketUUID);
+    } else {
+      console.error(`[聊天处理] ❌ setSocketId不是函数!`);
+    }
   }
   // 🔥 处理5：停止生成响应
   else if (type === "stopGeneration") {

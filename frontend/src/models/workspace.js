@@ -136,6 +136,7 @@ const Workspace = {
     prompt,
     chatHandler,
     attachments = [],
+    isAgentMode = false,  // 🔥 新增：Agent模式状态，由前端按钮控制
   }) {
     // 🔥 分支1: 线程聊天(Thread Chat)
     // 线程是对话的子分组,可以在一个工作空间内创建多个独立的对话线程
@@ -144,7 +145,8 @@ const Workspace = {
         { workspaceSlug, threadSlug },
         prompt,
         chatHandler,
-        attachments
+        attachments,
+        isAgentMode  // 🔥 传递Agent模式状态
       );
 
     // 🔥 分支2: 工作空间聊天(Workspace Chat)
@@ -153,7 +155,8 @@ const Workspace = {
       { slug: workspaceSlug },
       prompt,
       chatHandler,
-      attachments
+      attachments,
+      isAgentMode  // 🔥 传递Agent模式状态
     );
   },
   /**
@@ -174,7 +177,12 @@ const Workspace = {
    * 3. 使用AbortController支持中断请求
    * 4. 三个核心回调:onopen(连接建立)、onmessage(接收消息)、onerror(错误处理)
    */
-  streamChat: async function ({ slug }, message, handleChat, attachments = []) {
+  streamChat: async function ({ slug }, message, handleChat, attachments = [], isAgentMode = false) {
+    console.log('[streamChat] 函数被调用');
+    console.log('[streamChat] slug:', slug);
+    console.log('[streamChat] message:', message);
+    console.log('[streamChat] API_BASE:', API_BASE);
+
     // 🔥 步骤1: 创建中断控制器
     // AbortController用于取消fetch请求,当用户点击"停止生成"按钮时使用
     const ctrl = new AbortController();
@@ -188,11 +196,16 @@ const Workspace = {
       handleChat({ id: v4(), type: "stopGeneration" });
     });
 
+    const url = `${API_BASE}/workspace/${slug}/stream-chat`;
+    console.log('[streamChat] 准备连接URL:', url);
+
     // 🔥 步骤3: 建立SSE连接
     // fetchEventSource是一个专门用于SSE的库,比原生fetch更易用
-    await fetchEventSource(`${API_BASE}/workspace/${slug}/stream-chat`, {
+    try {
+      console.log('[streamChat] 开始调用fetchEventSource...');
+      await fetchEventSource(url, {
       method: "POST",
-      body: JSON.stringify({ message, attachments }),  // 请求体:用户消息+附件
+      body: JSON.stringify({ message, attachments, isAgentMode }),  // 🔥 请求体:用户消息+附件+Agent模式状态
       headers: baseHeaders(),                          // 请求头:包含认证token等
       signal: ctrl.signal,                             // 绑定中断信号
       openWhenHidden: true,                            // 即使页面隐藏也保持连接
@@ -200,8 +213,10 @@ const Workspace = {
       // 🔥 回调1: 连接建立时触发
       // 用于检查HTTP响应状态码,判断连接是否成功
       async onopen(response) {
+        console.log('[SSE] 连接建立，状态码:', response.status);
         if (response.ok) {
           // 连接成功(HTTP 200-299)
+          console.log('[SSE] ✅ 连接成功');
           return;
         } else if (
           response.status >= 400 &&
@@ -239,9 +254,12 @@ const Workspace = {
       // 这是最核心的回调!每次服务器发送数据块都会触发
       // 消息格式: data: {"type":"textResponseChunk","textResponse":"你好"}\n\n
       async onmessage(msg) {
+        console.log('[SSE] 收到消息:', msg.data);
         try {
           // 🔥 解析SSE消息数据(JSON格式)
           const chatResult = JSON.parse(msg.data);
+          console.log('[SSE] 解析成功，type:', chatResult.type);
+          console.log('[SSE] 完整数据:', chatResult);
 
           // 🔥 调用handleChat处理响应块
           // handleChat会根据type字段进行不同的处理
@@ -250,12 +268,15 @@ const Workspace = {
         } catch (error) {
           // JSON解析失败,静默忽略(可能是心跳包或其他非JSON消息)
           console.error("解析SSE消息失败:", error);
+          console.error("原始消息数据:", msg.data);
         }
       },
 
       // 🔥 回调3: 发生错误时触发
       // 如:网络中断、服务器崩溃、超时等
       onerror(err) {
+        console.error('[SSE] ❌ 发生错误:', err);
+        console.error('[SSE] 错误详情:', err.message);
         handleChat({
           id: v4(),
           type: "abort",
@@ -268,6 +289,13 @@ const Workspace = {
         throw new Error();
       },
     });
+    console.log('[streamChat] fetchEventSource 调用完成');
+    } catch (error) {
+      console.error('[streamChat] ❌ 捕获到异常:', error);
+      console.error('[streamChat] 异常详情:', error.message);
+      console.error('[streamChat] 异常堆栈:', error.stack);
+    }
+    console.log('[streamChat] 函数执行结束');
   },
   all: async function () {
     const workspaces = await fetch(`${API_BASE}/workspaces`, {

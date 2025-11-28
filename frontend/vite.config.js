@@ -24,6 +24,7 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,
+        ws: true,  // ✅ 启用WebSocket代理支持
       }
     }
   },

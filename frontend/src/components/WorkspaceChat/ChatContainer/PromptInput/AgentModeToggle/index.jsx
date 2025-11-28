@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 
 // Agent 模式切换事件名
 export const AGENT_MODE_TOGGLE_EVENT = "agent_mode_toggle";
-export const AGENT_MODE_SUBMIT_EVENT = "agent_mode_submit";
 
 /**
  * Agent 模式切换按钮组件
@@ -13,7 +12,8 @@ export const AGENT_MODE_SUBMIT_EVENT = "agent_mode_submit";
  */
 export default function AgentModeToggle() {
   const { t } = useTranslation();
-  const [isAgentMode, setIsAgentMode] = useState(false);
+  // 🔥 默认开启Agent模式，方便测试
+  const [isAgentMode, setIsAgentMode] = useState(true);
 
   const toggleMode = () => {
     const newMode = !isAgentMode;
@@ -27,19 +27,9 @@ export default function AgentModeToggle() {
     );
   };
 
-  // 监听提交事件,如果是 Agent 模式则自动添加 @agent 前缀
-  useEffect(() => {
-    if (!window) return;
-
-    const handleSubmit = (event) => {
-      if (isAgentMode) {
-        event.detail.isAgentMode = true;
-      }
-    };
-
-    window.addEventListener(AGENT_MODE_SUBMIT_EVENT, handleSubmit);
-    return () => window.removeEventListener(AGENT_MODE_SUBMIT_EVENT, handleSubmit);
-  }, [isAgentMode]);
+  // 🔥 移除了监听提交事件的逻辑
+  // Agent 模式现在由 ChatContainer 中的按钮状态直接控制
+  // 不再需要通过事件来传递 isAgentMode 状态
 
   return (
     <div
@@ -47,15 +37,15 @@ export default function AgentModeToggle() {
       data-tooltip-id="tooltip-agent-mode"
       data-tooltip-content={
         isAgentMode
-          ? t("chat_window.agent_mode_active") || "Agent 模式 (带工具)"
-          : t("chat_window.normal_mode_active") || "普通对话模式"
+          ? "🤖 Agent 模式已开启 - 支持网页搜索、文件操作等高级功能"
+          : "💬 普通对话模式 - 简单AI问答"
       }
       aria-label={isAgentMode ? "Agent Mode" : "Normal Mode"}
       onClick={toggleMode}
       className={`flex justify-center items-center cursor-pointer rounded-lg px-2 py-1 transition-all ${
         isAgentMode
-          ? "bg-blue-500/20 border border-blue-500/50"
-          : "opacity-60 hover:opacity-100"
+          ? "bg-blue-500/30 border-2 border-blue-500/70 shadow-lg shadow-blue-500/20"
+          : "opacity-60 hover:opacity-100 border border-gray-500/30"
       }`}
     >
       {isAgentMode ? (
@@ -85,7 +75,8 @@ export default function AgentModeToggle() {
  * Hook to check if agent mode is active
  */
 export function useAgentMode() {
-  const [isAgentMode, setIsAgentMode] = useState(false);
+  // 🔥 默认开启Agent模式，方便测试
+  const [isAgentMode, setIsAgentMode] = useState(true);
 
   useEffect(() => {
     if (!window) return;

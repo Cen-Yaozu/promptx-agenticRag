@@ -91,7 +91,8 @@ const WorkspaceThread = {
     { workspaceSlug, threadSlug },
     message,
     handleChat,
-    attachments = []
+    attachments = [],
+    isAgentMode = false  // 🔥 新增：Agent模式状态，由前端按钮控制
   ) {
     const ctrl = new AbortController();
 
@@ -108,7 +109,7 @@ const WorkspaceThread = {
       `${API_BASE}/workspace/${workspaceSlug}/thread/${threadSlug}/stream-chat`,
       {
         method: "POST",
-        body: JSON.stringify({ message, attachments }),
+        body: JSON.stringify({ message, attachments, isAgentMode }),  // 🔥 请求体:用户消息+附件+Agent模式状态
         headers: baseHeaders(),
         signal: ctrl.signal,
         openWhenHidden: true,

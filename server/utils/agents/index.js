@@ -311,8 +311,8 @@ class AgentHandler {
   #getFallbackProvider() {
     // First, fallback to the workspace chat provider and model if they exist
     if (
-      this.invocation.workspace.chatProvider &&
-      this.invocation.workspace.chatModel
+      this.invocation?.workspace?.chatProvider &&
+      this.invocation?.workspace?.chatModel
     ) {
       return {
         provider: this.invocation.workspace.chatProvider,
@@ -352,7 +352,7 @@ class AgentHandler {
     }
 
     // The provider was explicitly set, so check if the workspace has an agent model set.
-    if (this.invocation.workspace.agentModel)
+    if (this.invocation?.workspace?.agentModel)
       return this.invocation.workspace.agentModel;
 
     // Otherwise, we have no model to use - so guess a default model to use via the provider
@@ -366,12 +366,16 @@ class AgentHandler {
     this.provider = config.provider;
     this.model = config.model;
 
-    if (!this.provider)
+    if (!this.provider) {
+      const workspaceChatProvider = this.invocation?.workspace?.chatProvider || '未配置';
+      const systemProvider = process.env.LLM_PROVIDER || '未配置';
+
       throw new Error(`Agent模式需要配置LLM供应商。当前配置状态：
-- 工作空间配置: ${this.invocation.workspace.chatProvider || '未配置'}
-- 系统配置: ${process.env.LLM_PROVIDER || '未配置'}
+- 工作空间配置: ${workspaceChatProvider}
+- 系统配置: ${systemProvider}
 
 请到 工作空间设置 → Chat Settings 中配置LLM供应商`);
+    }
     this.log(`Start ${this.#invocationUUID}::${this.provider}:${this.model}`);
     this.checkSetup();
   }
@@ -413,6 +417,11 @@ class AgentHandler {
    * 获取工作空间通用配置（这是fallback的关键！）
    */
   #getWorkspaceChatConfig() {
+    if (!this.invocation?.workspace) {
+      console.error(`[getWorkspaceChatConfig] ❌ this.invocation.workspace 为 null`);
+      return null;
+    }
+
     const chatProvider = this.invocation.workspace.chatProvider;
     const chatModel = this.invocation.workspace.chatModel;
 
