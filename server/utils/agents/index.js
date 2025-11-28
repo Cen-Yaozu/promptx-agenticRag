@@ -391,6 +391,14 @@ class AgentHandler {
    * 获取Agent专用配置
    */
   #getAgentConfig() {
+    console.log(`[getAgentConfig] this.invocation:`, this.invocation ? { uuid: this.invocation.uuid } : 'null');
+    console.log(`[getAgentConfig] this.invocation.workspace:`, this.invocation?.workspace ? { id: this.invocation.workspace.id } : 'null');
+
+    if (!this.invocation?.workspace) {
+      console.error(`[getAgentConfig] ❌ this.invocation.workspace 为 null`);
+      return null;
+    }
+
     const agentProvider = this.invocation.workspace.agentProvider;
     const agentModel = this.invocation.workspace.agentModel;
 
@@ -438,12 +446,20 @@ class AgentHandler {
   }
 
   async #validInvocation() {
+    console.log(`[validInvocation] 开始验证，invocationUUID: ${this.#invocationUUID}`);
     const invocation = await WorkspaceAgentInvocation.getWithWorkspace({
       uuid: String(this.#invocationUUID),
     });
+
+    console.log(`[validInvocation] 查询结果:`, invocation ? {
+      uuid: invocation.uuid,
+      workspace: invocation.workspace ? { id: invocation.workspace.id } : 'null'
+    } : 'null');
+
     if (invocation?.closed)
       throw new Error("This agent invocation is already closed");
     this.invocation = invocation ?? null;
+    console.log(`[validInvocation] 设置this.invocation:`, this.invocation ? { uuid: this.invocation.uuid } : 'null');
   }
 
   parseCallOptions(args, config = {}, pluginName) {
