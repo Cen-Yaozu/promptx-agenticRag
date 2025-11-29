@@ -1,6 +1,10 @@
 const { reqBody } = require("../utils/http");
 const { flexUserRoleValid, ROLES } = require("../utils/middleware/multiUserProtected");
 const { validatedRequest } = require("../utils/middleware/validatedRequest");
+const { handleRoleUpload } = require("../utils/files/roleUploadMulter");
+const roleUploadHandler = require("../utils/roleUploadHandler");
+const { Workspace } = require("../models/workspace");
+const MCPCompatibilityLayer = require("../utils/MCP/index");
 
 // 在单用户模式下，允许所有用户访问
 function allowAllUsers(request, response, next) {
@@ -692,6 +696,135 @@ function workspacePromptXRolesEndpoints(app) {
         response.status(500).json({
           success: false,
           error: '获取可用角色失败'
+        });
+      }
+    }
+  );
+
+  // POST /workspaces/:workspaceId/promptx-roles/upload - 上传自定义角色包
+  app.post(
+    "/workspaces/:workspaceId/promptx-roles/upload",
+    [validatedRequest, flexUserRoleValid([ROLES.admin, ROLES.manager]), handleRoleUpload],
+    async (request, response) => {
+      try {
+        const workspaceId = validateWorkspaceId(request.params.workspaceId);
+        const { customName, customDescription, customId } = request.body;
+
+        // 验证工作区存在
+        const workspace = await prisma.workspaces.findUnique({
+          where: { id: workspaceId }
+        });
+
+        if (!workspace) {
+          return response.status(404).json({
+            success: false,
+            error: '工作区不存在'
+          });
+        }
+
+        // 验证上传文件
+        if (!request.file) {
+          return response.status(400).json({
+            success: false,
+            error: '未检测到上传文件'
+          });
+        }
+
+        const uploadedFile = request.file;
+        console.log(`[PromptXRoleUpload] 工作区 ${workspaceId} 上传角色包: ${uploadedFile.originalname}`);
+
+        // 处理上传
+        const uploadResult = await roleUploadHandler.processUpload({
+          zipPath: uploadedFile.path,
+          workspaceId,
+          customName,
+          customDescription,
+          customId,
+          userId: request.user?.id || null
+        });
+
+        console.log(`[PromptXRoleUpload] 上传成功，角色ID: ${uploadResult.roleId}`);
+
+        // 创建数据库记录
+        const roleRecord = await Workspace.createWorkspaceRole(
+          workspaceId,
+          uploadResult.roleId,
+          {
+            customName: uploadResult.metadata.customName,
+            customDescription: uploadResult.metadata.customDescription,
+            userId: request.user?.id || null
+          }
+        );
+
+        console.log(`[PromptXRoleUpload] 数据库记录已创建`);
+
+        // 记录审计日志
+        await roleAuth.logConfigurationChange(
+          workspaceId,
+          uploadResult.roleId,
+          'ROLE_UPLOADED',
+          null,
+          {
+            roleId: uploadResult.roleId,
+            customName: uploadResult.metadata.customName,
+            customDescription: uploadResult.metadata.customDescription,
+            source: 'user'
+          },
+          request.user?.id || null,
+          request.ip || request.headers['x-forwarded-for'],
+          request.get('User-Agent')
+        );
+
+        console.log(`[PromptXRoleUpload] 审计日志已记录`);
+
+        // 触发MCP刷新
+        try {
+          const mcpLayer = new MCPCompatibilityLayer();
+          await mcpLayer.refreshPromptXResources();
+          console.log(`[PromptXRoleUpload] MCP资源刷新已触发`);
+        } catch (mcpError) {
+          console.warn(`[PromptXRoleUpload] MCP刷新失败，但不阻止上传:`, mcpError.message);
+        }
+
+        // 返回成功响应
+        return response.status(200).json({
+          success: true,
+          data: {
+            roleId: uploadResult.roleId,
+            name: uploadResult.metadata.customName || uploadResult.roleId,
+            description: uploadResult.metadata.customDescription || '',
+            source: 'user',
+            enabled: true,
+            addedAt: uploadResult.metadata.addedAt
+          },
+          message: '角色上传成功'
+        });
+
+      } catch (error) {
+        console.error('[PromptXRoleUpload] 上传失败:', error);
+
+        // 处理特定错误
+        if (error.code === 'ROLE_CONFLICT') {
+          return response.status(409).json({
+            success: false,
+            error: '角色ID已存在',
+            conflictInfo: error.conflictInfo,
+            conflictOptions: ['cancel', 'overwrite', 'useCustomId']
+          });
+        }
+
+        // 处理验证错误
+        if (error.message.includes('无效') || error.message.includes('验证失败')) {
+          return response.status(400).json({
+            success: false,
+            error: error.message
+          });
+        }
+
+        // 通用错误
+        return response.status(500).json({
+          success: false,
+          error: `角色上传失败: ${error.message}`
         });
       }
     }

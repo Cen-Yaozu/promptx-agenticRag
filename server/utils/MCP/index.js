@@ -424,5 +424,36 @@ class MCPCompatibilityLayer extends MCPHypervisor {
     this.log(`MCP server was killed and removed from config file: ${name}`);
     return { success: true, error: null };
   }
+
+  /**
+   * 触发PromptX资源刷新（尽力而为）
+   * 基于research.md的决策：MCP无官方refresh API，仅验证连接健康
+   * 实际资源刷新由前端重新调用discover工具触发
+   * @returns {Promise<boolean>} 是否刷新检查成功
+   */
+  async refreshPromptXResources() {
+    try {
+      const mcpServer = this.mcps['promptx-local'];
+      if (!mcpServer) {
+        console.warn('[MCP刷新] PromptX MCP服务器未配置');
+        return false;
+      }
+
+      // 检查连接健康
+      const healthy = await mcpServer.ping();
+      if (!healthy) {
+        console.warn('[MCP刷新] PromptX MCP服务器ping失败');
+        return false;
+      }
+
+      // 注意: 无官方refresh API，仅验证连接正常
+      // 实际刷新由前端调用discover工具触发
+      this.log('[MCP刷新] PromptX服务器连接正常，资源刷新将由discover触发');
+      return true;
+    } catch (error) {
+      console.error('[MCP刷新] PromptX刷新检查失败:', error.message);
+      return false;
+    }
+  }
 }
 module.exports = MCPCompatibilityLayer;

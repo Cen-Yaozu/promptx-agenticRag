@@ -631,6 +631,125 @@ const Workspace = {
       return false;
     }
   },
+
+  /**
+   * Get all roles for a workspace with source attribution
+   * @param {number} workspaceId - The ID of the workspace
+   * @returns {Promise<Array>} Array of roles with source field ('system' or 'user')
+   */
+  getRolesWithSource: async function (workspaceId) {
+    try {
+      const roles = await prisma.workspace_promptx_roles.findMany({
+        where: { workspaceId },
+        include: {
+          addedBy_user: {
+            select: {
+              id: true,
+              username: true
+            }
+          }
+        },
+        orderBy: {
+          addedAt: 'desc'
+        }
+      });
+
+      // Determine source based on addedBy field
+      return roles.map(role => ({
+        ...role,
+        source: role.addedBy !== null ? 'user' : 'system'
+      }));
+    } catch (error) {
+      console.error('Error getting roles with source:', error.message);
+      return [];
+    }
+  },
+
+  /**
+   * Check if a role ID conflicts with existing roles
+   * @param {number} workspaceId - The ID of the workspace
+   * @param {string} roleId - The role ID to check
+   * @returns {Promise<Object>} Conflict information { existsInDB, existsInFS, conflict }
+   */
+  checkRoleConflict: async function (workspaceId, roleId) {
+    try {
+      const os = require('os');
+      const path = require('path');
+      const fs = require('fs').promises;
+
+      // Check database
+      const roleInDB = await prisma.workspace_promptx_roles.findFirst({
+        where: {
+          workspaceId,
+          roleId
+        }
+      });
+      const existsInDB = !!roleInDB;
+
+      // Check filesystem
+      const roleDir = path.join(os.homedir(), '.promptx', 'resource', 'role', roleId);
+      let existsInFS = false;
+      try {
+        await fs.access(roleDir);
+        existsInFS = true;
+      } catch {
+        existsInFS = false;
+      }
+
+      return {
+        existsInDB,
+        existsInFS,
+        conflict: existsInDB || existsInFS,
+        existingRole: roleInDB || null
+      };
+    } catch (error) {
+      console.error('Error checking role conflict:', error.message);
+      throw new Error(`角色冲突检查失败: ${error.message}`);
+    }
+  },
+
+  /**
+   * Create a new workspace role record
+   * @param {number} workspaceId - The ID of the workspace
+   * @param {string} roleId - The role ID
+   * @param {Object} metadata - Role metadata
+   * @param {string} metadata.customName - Custom display name
+   * @param {string} metadata.customDescription - Custom description
+   * @param {number} metadata.userId - User ID who added the role
+   * @returns {Promise<Object>} The created role record
+   */
+  createWorkspaceRole: async function (workspaceId, roleId, metadata = {}) {
+    try {
+      const role = await prisma.workspace_promptx_roles.create({
+        data: {
+          workspaceId,
+          roleId,
+          enabled: true, // User-uploaded roles are enabled by default
+          customName: metadata.customName || null,
+          customDescription: metadata.customDescription || null,
+          addedBy: metadata.userId || null,
+          updatedBy: metadata.userId || null,
+          lastUpdatedAt: new Date()
+        },
+        include: {
+          addedBy_user: {
+            select: {
+              id: true,
+              username: true
+            }
+          }
+        }
+      });
+
+      return {
+        ...role,
+        source: role.addedBy !== null ? 'user' : 'system'
+      };
+    } catch (error) {
+      console.error('Error creating workspace role:', error.message);
+      throw new Error(`创建工作区角色失败: ${error.message}`);
+    }
+  },
 };
 
 module.exports = { Workspace };
