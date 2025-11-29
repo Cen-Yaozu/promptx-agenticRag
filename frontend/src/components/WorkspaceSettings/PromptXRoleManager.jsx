@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
-import { Check, X, Power, Wrench, WarningCircle, ArrowClockwise, MagnifyingGlass, Funnel } from "@phosphor-icons/react";
+import { Check, X, Power, Wrench, WarningCircle, ArrowClockwise, MagnifyingGlass, Funnel, UploadSimple } from "@phosphor-icons/react";
 import WorkspacePromptXRoles from "@/models/workspacePromptXRoles";
+import RoleUploader from "./RoleUploader";
 
 /**
  * PromptX角色管理组件
@@ -22,6 +23,7 @@ const PromptXRoleManager = ({ workspaceId: propWorkspaceId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [uploaderOpen, setUploaderOpen] = useState(false);
 
   // 监听workspace prop的变化，更新workspaceId
   useEffect(() => {
@@ -269,6 +271,22 @@ const PromptXRoleManager = ({ workspaceId: propWorkspaceId }) => {
     }
   };
 
+  // 处理上传成功
+  const handleUploadSuccess = async (uploadedRole) => {
+    console.log('角色上传成功:', uploadedRole);
+    setSuccess(`角色 "${uploadedRole.name}" 上传成功！`);
+
+    // 刷新角色列表
+    await fetchWorkspaceConfig();
+
+    // 触发MCP刷新（尽力而为）
+    try {
+      await refreshRolesFromMCP();
+    } catch (err) {
+      console.warn('MCP刷新失败，但不影响主要流程:', err);
+    }
+  };
+
   // 键盘快捷键支持
   useEffect(() => {
     const handleKeyDown = (event) => {
@@ -329,6 +347,15 @@ const PromptXRoleManager = ({ workspaceId: propWorkspaceId }) => {
           >
             <ArrowClockwise className={loading ? "animate-spin" : ""} size={16} />
             <span>刷新角色</span>
+          </button>
+          <button
+            onClick={() => setUploaderOpen(true)}
+            className="px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center space-x-1"
+            disabled={loading || saving}
+            title="上传自定义角色包"
+          >
+            <UploadSimple size={16} />
+            <span>上传角色</span>
           </button>
         </div>
       </div>
@@ -664,6 +691,14 @@ const PromptXRoleManager = ({ workspaceId: propWorkspaceId }) => {
           </div>
         </div>
       )}
+
+      {/* 角色上传对话框 */}
+      <RoleUploader
+        workspaceId={workspaceId}
+        isOpen={uploaderOpen}
+        onClose={() => setUploaderOpen(false)}
+        onUploadSuccess={handleUploadSuccess}
+      />
     </div>
   );
 };

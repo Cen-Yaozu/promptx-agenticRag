@@ -263,6 +263,68 @@ const WorkspacePromptXRoles = {
       return { authorized: false, error: error.message };
     }
   },
+
+  /**
+   * 上传自定义角色包
+   * @param {number} workspaceId - 工作区ID
+   * @param {File} file - ZIP文件对象
+   * @param {string} customName - 自定义名称（可选）
+   * @param {string} customDescription - 自定义描述（可选）
+   * @param {string} customId - 自定义角色ID（用于解决冲突，可选）
+   * @returns {Promise<{data: Object|null, error: string|null}>}
+   */
+  uploadRolePackage: async function (workspaceId, file, customName = '', customDescription = '', customId = '') {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      if (customName) {
+        formData.append('customName', customName);
+      }
+      if (customDescription) {
+        formData.append('customDescription', customDescription);
+      }
+      if (customId) {
+        formData.append('customId', customId);
+      }
+
+      const response = await fetch(
+        `${API_BASE}/workspaces/${workspaceId}/promptx-roles/upload`,
+        {
+          method: "POST",
+          body: formData,
+          headers: {
+            'Authorization': baseHeaders()['Authorization'],
+            // 不设置Content-Type，让浏览器自动设置multipart/form-data边界
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // 处理特殊错误码
+        if (response.status === 409) {
+          return {
+            data: null,
+            error: data.error || '角色ID冲突',
+            conflictInfo: data.conflictInfo,
+            conflictOptions: data.conflictOptions
+          };
+        }
+        return { data: null, error: data.error || '上传失败' };
+      }
+
+      if (!data.success) {
+        return { data: null, error: data.error || '上传失败' };
+      }
+
+      return { data: data.data, error: null };
+    } catch (error) {
+      console.error('角色包上传失败:', error);
+      return { data: null, error: error.message || '网络错误，请重试' };
+    }
+  },
 };
 
 export default WorkspacePromptXRoles;
