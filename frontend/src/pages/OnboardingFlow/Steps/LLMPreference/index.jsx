@@ -68,6 +68,7 @@ import paths from "@/utils/paths";
 import showToast from "@/utils/toast";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import ConfigManager from "@/utils/configManager";
 
 const LLMS = [
   {
@@ -302,8 +303,10 @@ export default function LLMPreference({
   const [filteredLLMs, setFilteredLLMs] = useState([]);
   const [selectedLLM, setSelectedLLM] = useState(null);
   const [settings, setSettings] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
   const formRef = useRef(null);
   const hiddenSubmitButtonRef = useRef(null);
+  const configManager = useRef(new ConfigManager());
   const isHosted = window.location.hostname.includes("useanything.com");
   const navigate = useNavigate();
 
@@ -331,28 +334,71 @@ export default function LLMPreference({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const form = e.target;
-    const data = {};
-    const formData = new FormData(form);
-    data.LLMProvider = selectedLLM;
-    // Default to AnythingLLM embedder and LanceDB
-    data.EmbeddingEngine = "native";
-    data.VectorDB = "lancedb";
-    for (var [key, value] of formData.entries()) data[key] = value;
+    setIsLoading(true);
 
-    const { error } = await System.updateSystem(data);
-    if (error) {
-      showToast(`Failed to save LLM settings: ${error}`, "error");
-      return;
+    try {
+      const form = e.target;
+      const formData = new FormData(form);
+
+      // 构建配置对象
+      const config = {
+        provider: selectedLLM,
+        syncMode: 'simple', // onboarding时使用简单模式
+        EmbeddingEngine: "native",
+        VectorDB: "lancedb"
+      };
+
+      // 从表单中提取配置
+      for (var [key, value] of formData.entries()) {
+        if (key.endsWith('Key')) {
+          config.apiKey = value;
+        } else if (key.endsWith('BasePath')) {
+          config.basePath = value;
+        } else if (key.endsWith('ModelPref')) {
+          config.model = value;
+        }
+      }
+
+      console.log('[Onboarding] 提交LLM配置:', {
+        provider: selectedLLM,
+        model: config.model,
+        hasApiKey: !!config.apiKey,
+        basePath: config.basePath
+      });
+
+      // 使用新的配置管理器
+      const result = await configManager.current.setUnifiedConfig(config);
+
+      if (!result.success) {
+        showToast(`配置保存失败: ${result.error}`, "error");
+        return;
+      }
+
+      if (result.warnings && result.warnings.length > 0) {
+        showToast(`配置已保存，但有一些注意事项: ${result.warnings.join(', ')}`, "warning");
+      } else {
+        showToast("LLM配置保存成功!", "success");
+      }
+
+      navigate(paths.onboarding.userSetup());
+    } catch (error) {
+      console.error('[Onboarding] 配置保存失败:', error);
+      showToast(`配置保存失败: ${error.message}`, "error");
+    } finally {
+      setIsLoading(false);
     }
-    navigate(paths.onboarding.userSetup());
   };
 
   useEffect(() => {
     setHeader({ title: TITLE, description: DESCRIPTION });
-    setForwardBtn({ showing: true, disabled: false, onClick: handleForward });
-    setBackBtn({ showing: true, disabled: false, onClick: handleBack });
-  }, []);
+    setForwardBtn({
+      showing: true,
+      disabled: isLoading,
+      onClick: handleForward,
+      text: isLoading ? "保存中..." : "下一步"
+    });
+    setBackBtn({ showing: true, disabled: isLoading, onClick: handleBack });
+  }, [isLoading]);
 
   useEffect(() => {
     const filtered = LLMS.filter((llm) =>

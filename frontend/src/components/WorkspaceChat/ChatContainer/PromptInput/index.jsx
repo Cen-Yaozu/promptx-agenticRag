@@ -4,7 +4,7 @@ import SlashCommandsButton, {
   useSlashCommands,
 } from "./SlashCommands";
 import debounce from "lodash.debounce";
-import { PaperPlaneRight, Robot } from "@phosphor-icons/react";
+import { PaperPlaneRight } from "@phosphor-icons/react";
 import StopGenerationButton from "./StopGenerationButton";
 import AvailableAgentsButton, {
   AvailableAgents,
@@ -267,12 +267,7 @@ export default function PromptInput({
         <div className="flex items-center rounded-lg md:mb-4 md:w-full">
           <div className="w-[95vw] md:w-[635px] bg-theme-bg-chat-input light:bg-white light:border-solid light:border-[1px] light:border-theme-chat-input-border shadow-sm rounded-2xl pwa:rounded-3xl flex flex-col px-2 overflow-hidden">
             {/* 🔥 模式状态指示器 */}
-            {isAgentMode && (
-              <div className="mx-3 mt-2 px-3 py-1 bg-blue-500/20 border border-blue-500/50 rounded-lg flex items-center gap-2">
-                <Robot size={16} color="var(--theme-primary)" weight="fill" />
-                <span className="text-sm text-blue-400 font-medium">Agent 模式已开启 - 支持网页搜索、文件操作等功能</span>
-              </div>
-            )}
+            {/* Agent模式横幅提示已移除 */}
             <AttachmentManager attachments={attachments} />
             <div className="flex items-center border-b border-theme-chat-input-border mx-3">
               <textarea

@@ -90,6 +90,9 @@ export default {
       agentConfig: (slug) => {
         return `/workspace/${slug}/settings/agent-config`;
       },
+      promptxRoles: (slug) => {
+        return `/workspace/${slug}/settings/promptx-roles`;
+      },
     },
     thread: (wsSlug, threadSlug) => {
       return `/workspace/${wsSlug}/t/${threadSlug}`;

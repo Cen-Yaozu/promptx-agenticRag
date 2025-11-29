@@ -12,6 +12,7 @@ import {
   Robot,
   User,
   Wrench,
+  Sparkle,
 } from "@phosphor-icons/react";
 import paths from "@/utils/paths";
 import { Link } from "react-router-dom";
@@ -21,6 +22,7 @@ import ChatSettings from "./ChatSettings";
 import VectorDatabase from "./VectorDatabase";
 import Members from "./Members";
 import WorkspaceAgentConfiguration from "./AgentConfig";
+import PromptXRoles from "./PromptXRoles";
 import useUser from "@/hooks/useUser";
 import { useTranslation } from "react-i18next";
 import System from "@/models/system";
@@ -31,6 +33,7 @@ const TABS = {
   "vector-database": VectorDatabase,
   members: Members,
   "agent-config": WorkspaceAgentConfiguration,
+  "promptx-roles": PromptXRoles,
 };
 
 export default function WorkspaceSettings() {
@@ -109,6 +112,11 @@ function ShowWorkspaceChat() {
             icon={<User className="h-6 w-6" />}
             to={paths.workspace.settings.members(slug)}
             visible={["admin", "manager"].includes(user?.role)}
+          />
+          <TabItem
+            title="PromptX 角色"
+            icon={<Sparkle className="h-6 w-6" />}
+            to={paths.workspace.settings.promptxRoles(slug)}
           />
           {/* Agent配置已合并到系统设置 > LLM偏好 */}
           {/* <TabItem
