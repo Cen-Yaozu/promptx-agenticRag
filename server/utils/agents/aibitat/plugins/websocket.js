@@ -51,10 +51,11 @@ const websocket = {
       setup(aibitat) {
         // 🚀 无感心跳机制 - 使用原生WebSocket ping/pong
         let heartbeatInterval = null;
-        let isConnectionAlive = true;
+        let missedPongCount = 0;
 
         const heartbeat = () => {
-          isConnectionAlive = true;
+          socket.isAlive = true;
+          missedPongCount = 0;
           console.log(chalk.green("[WebSocket无感心跳] 收到pong响应，连接存活"));
         };
 
@@ -65,8 +66,8 @@ const websocket = {
           }
 
           // 标记连接为存活状态
-          isConnectionAlive = true;
           socket.isAlive = true;
+          missedPongCount = 0;
 
           // 设置pong监听器
           socket.on('pong', heartbeat);
@@ -79,12 +80,22 @@ const websocket = {
                 return;
               }
 
-              // 检查连接是否存活
+              // 检查连接是否存活：允许连续一次丢包，第二次才终止
               if (!socket.isAlive) {
-                console.log(chalk.red("[WebSocket无感心跳] 连接已死亡，主动关闭"));
-                socket.terminate();
-                clearInterval(heartbeatInterval);
-                return;
+                missedPongCount += 1;
+                if (missedPongCount >= 2) {
+                  console.log(chalk.red("[WebSocket无感心跳] 连续未收到pong，主动关闭"));
+                  socket.terminate();
+                  clearInterval(heartbeatInterval);
+                  return;
+                }
+                console.log(
+                  chalk.yellow(
+                    `[WebSocket无感心跳] 未收到pong，容忍计数 ${missedPongCount}/2`
+                  )
+                );
+              } else {
+                missedPongCount = 0;
               }
 
               // 重置存活状态，发送原生ping

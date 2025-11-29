@@ -41,6 +41,7 @@ export default function ChatContainer({ workspace, knownHistory = [] }) {
   const [chatHistory, setChatHistory] = useState(knownHistory); // 聊天历史记录状态
   const [socketId, setSocketId] = useState(null);               // WebSocket连接ID（用于Agent功能）
   const [websocket, setWebsocket] = useState(null);              // WebSocket连接实例
+  const [wsRetryAttempt, setWsRetryAttempt] = useState(0);       // WebSocket重试次数
   const { files, parseAttachments } = useContext(DndUploaderContext); // 文件拖拽上传上下文
   const isAgentMode = useAgentMode();                            // 🔥 获取Agent模式状态
 
@@ -343,6 +344,11 @@ useEffect(() => {
   loadingResponse === true && fetchReply();
 }, [loadingResponse, chatHistory, workspace]); // 依赖项：状态变化时重新执行Effect
 
+  // 当socketId变化时重置重试计数
+  useEffect(() => {
+    setWsRetryAttempt(0);
+  }, [socketId]);
+
   // ==================== WebSocket Agent连接统一管理 ====================
 /**
  * 🔥 WebSocket Agent连接统一管理
@@ -350,7 +356,7 @@ useEffect(() => {
  * Agent功能是DeeChat的高级功能，允许AI执行复杂的任务流程
  */
 useEffect(() => {
-  console.log(`[WebSocket] 统一管理Effect触发，socketId: ${socketId}, 当前websocket: ${!!websocket}`);
+  console.log(`[WebSocket] 统一管理Effect触发，socketId: ${socketId}, 当前websocket: ${!!websocket}, 重试次数: ${wsRetryAttempt}`);
 
   /**
    * 🔥 清理函数：清理现有连接资源
@@ -406,9 +412,27 @@ useEffect(() => {
   const setupEventListeners = (socket) => {
     if (!socket) return;
 
+    let openTimeoutId = null;
+    const clearOpenTimeout = () => {
+      if (openTimeoutId) {
+        clearTimeout(openTimeoutId);
+        openTimeoutId = null;
+      }
+    };
+
+    // 连接超时保护：10秒内未open则关闭触发重试
+    openTimeoutId = setTimeout(() => {
+      if (socket.readyState === WebSocket.CONNECTING) {
+        console.warn("[WebSocket] 连接超时，主动关闭触发重试");
+        socket.close(4408, "open-timeout");
+      }
+    }, 10_000);
+
     // 连接建立事件
     socket.addEventListener("open", () => {
       console.log(`[WebSocket] 连接成功: ${socket.url}`);
+      clearOpenTimeout();
+      setWsRetryAttempt(0); // 成功后重置重试计数
     });
 
     // 连接错误事件
@@ -418,27 +442,40 @@ useEffect(() => {
 
     // 连接关闭事件
     socket.addEventListener("close", (event) => {
+      clearOpenTimeout();
       console.log(`[WebSocket] 连接关闭 - 代码: ${event.code}, 原因: ${event.reason}`);
       window.dispatchEvent(new CustomEvent(AGENT_SESSION_END));
 
-      setChatHistory((prev) => [
-        ...prev.filter((msg) => !!msg.content),
-        {
-          uuid: v4(),
-          type: "statusResponse",
-          content: `Agent session complete (${event.code})`,
-          role: "assistant",
-          sources: [],
-          closed: true,
-          error: null,
-          animate: false,
-          pending: false,
-        },
-      ]);
+      // 根据关闭原因决定是否重试
+      const shouldRetry =
+        [1001, 1005, 1006, 1011, 4408].includes(event.code) &&
+        wsRetryAttempt < 5;
+
+      if (shouldRetry) {
+        const nextAttempt = wsRetryAttempt + 1;
+        const backoffMs = Math.min(30_000, 1_000 * 2 ** (nextAttempt - 1));
+        console.log(`[WebSocket] 异常关闭，准备重试 #${nextAttempt}，等待 ${backoffMs}ms`);
+        setWsRetryAttempt(nextAttempt);
+      } else {
+        setChatHistory((prev) => [
+          ...prev.filter((msg) => !!msg.content),
+          {
+            uuid: v4(),
+            type: "statusResponse",
+            content: `Agent session complete (${event.code})`,
+            role: "assistant",
+            sources: [],
+            closed: true,
+            error: null,
+            animate: false,
+            pending: false,
+          },
+        ]);
+        setSocketId(null);
+      }
 
       setLoadingResponse(false);
       setWebsocket(null);
-      setSocketId(null);
     });
 
     // 消息接收事件
@@ -483,24 +520,60 @@ useEffect(() => {
     });
 
     // 中断事件监听
-    window.addEventListener(ABORT_STREAM_EVENT, () => {
+    const abortListener = () => {
       window.dispatchEvent(new CustomEvent(AGENT_SESSION_END));
       socket.close();
-    });
+    };
+    window.addEventListener(ABORT_STREAM_EVENT, abortListener);
+
+    // 返回清理函数以便移除定时器和监听
+    return () => {
+      clearOpenTimeout();
+      window.removeEventListener(ABORT_STREAM_EVENT, abortListener);
+    };
   };
 
-  // 执行连接建立流程
-  const newSocket = establishConnection();
-  if (newSocket) {
-    setupEventListeners(newSocket);
-    setWebsocket(newSocket);
-    window.dispatchEvent(new CustomEvent(AGENT_SESSION_START));
-    window.dispatchEvent(new CustomEvent(CLEAR_ATTACHMENTS_EVENT));
+  // 执行连接建立流程（带重试延迟）
+  let retryTimer = null;
+  let teardown = null;
+  const delayMs =
+    wsRetryAttempt > 0 ? Math.min(30_000, 1_000 * 2 ** (wsRetryAttempt - 1)) : 0;
+
+  const startConnection = () => {
+    const newSocket = establishConnection();
+    if (newSocket) {
+      const removeListeners = setupEventListeners(newSocket);
+      setWebsocket(newSocket);
+      window.dispatchEvent(new CustomEvent(AGENT_SESSION_START));
+      window.dispatchEvent(new CustomEvent(CLEAR_ATTACHMENTS_EVENT));
+
+      // 在连接清理时执行
+      return () => {
+        if (removeListeners) removeListeners();
+        cleanupConnection();
+      };
+    }
+    return cleanupConnection;
+  };
+
+  if (delayMs > 0) {
+    retryTimer = setTimeout(() => {
+      teardown = startConnection();
+    }, delayMs);
+  } else {
+    teardown = startConnection();
   }
 
-  // 清理函数：组件卸载时调用
-  return cleanupConnection;
-}, [socketId]); // 只依赖socketId
+  // 清理函数：组件卸载或依赖变更时调用
+  return () => {
+    if (retryTimer) clearTimeout(retryTimer);
+    if (typeof teardown === "function") {
+      teardown();
+    } else {
+      cleanupConnection();
+    }
+  };
+}, [socketId, wsRetryAttempt]); // 依赖socketId和重试次数
 
   
   // ==================== 组件渲染 ====================
