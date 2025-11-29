@@ -221,17 +221,6 @@ model workspace_users {
   workspaces    workspaces @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
 }
 
-model cache_data {
-  id            Int       @id @default(autoincrement())
-  name          String
-  data          String
-  belongsTo     String?
-  byId          Int?
-  expiresAt     DateTime?
-  createdAt     DateTime  @default(now())
-  lastUpdatedAt DateTime  @default(now())
-}
-
 model embed_configs {
   id                         Int           @id @default(autoincrement())
   uuid                       String        @unique

@@ -343,149 +343,166 @@ useEffect(() => {
   loadingResponse === true && fetchReply();
 }, [loadingResponse, chatHistory, workspace]); // 依赖项：状态变化时重新执行Effect
 
-  // ==================== WebSocket Agent处理Effect ====================
+  // ==================== WebSocket Agent连接统一管理 ====================
 /**
- * 🔥 WebSocket Agent连接管理
- * 当socketId状态变化时，建立或管理Agent WebSocket连接
+ * 🔥 WebSocket Agent连接统一管理
+ * 统一管理WebSocket连接的建立、维护和清理，避免竞态条件
  * Agent功能是DeeChat的高级功能，允许AI执行复杂的任务流程
  */
 useEffect(() => {
-  // 🔥 清理函数：组件卸载时关闭WebSocket连接
-  return () => {
+  console.log(`[WebSocket] 统一管理Effect触发，socketId: ${socketId}, 当前websocket: ${!!websocket}`);
+
+  /**
+   * 🔥 清理函数：清理现有连接资源
+   */
+  const cleanupConnection = () => {
     if (websocket) {
-      console.log(`[WebSocket] 清理：关闭现有连接`);
-      websocket.close();
+      console.log(`[WebSocket] 清理连接 - 移除事件监听器`);
+      // 移除所有事件监听器，避免重复触发
+      websocket.onopen = null;
+      websocket.onclose = null;
+      websocket.onmessage = null;
+      websocket.onerror = null;
+
+      if (websocket.readyState === WebSocket.OPEN || websocket.readyState === WebSocket.CONNECTING) {
+        console.log(`[WebSocket] 关闭活跃连接，状态: ${websocket.readyState}`);
+        websocket.close();
+      }
       setWebsocket(null);
     }
-    setSocketId(null);
   };
-}, []);
 
-// 🔥 WebSocket连接建立Effect
-useEffect(() => {
-  console.log(`[WebSocket] useEffect被触发，socketId: ${socketId}`);
   /**
-   * 🔥 处理WebSocket连接的函数
-   * 负责建立、管理和关闭Agent WebSocket连接
+   * 🔥 建立新连接的函数
    */
-  function handleWSS() {
-    console.log(`[WebSocket] handleWSS被调用`);
-    console.log(`[WebSocket] socketId: ${socketId}`);
-    console.log(`[WebSocket] websocket: ${!!websocket}`);
+  const establishConnection = () => {
+    if (!socketId) {
+      console.log(`[WebSocket] 跳过连接 - socketId为空`);
+      return null;
+    }
 
-    try {
-      // 如果没有socketId或已有连接，不重复建立连接
-      if (!socketId || !!websocket) {
-        console.log(`[WebSocket] 跳过连接 - socketId: ${socketId}, websocket: ${!!websocket}`);
-        return;
-      }
+    // 如果已有连接且状态正常，不重复建立
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+      console.log(`[WebSocket] 跳过连接 - 已有活跃连接，socketId: ${socketId}`);
+      return websocket;
+    }
 
-      // 🔥 建立WebSocket连接到Agent服务端点
-      const wsUrl = `${websocketURI()}/api/agent-invocation/${socketId}`;
-      console.log(`[WebSocket] websocketURI()返回: ${websocketURI()}`);
-      console.log(`[WebSocket] 尝试连接: ${wsUrl}`);
+    // 清理旧连接
+    cleanupConnection();
 
-      const socket = new WebSocket(wsUrl);
-      socket.supportsAgentStreaming = false;  // 标记是否支持流式Agent响应
+    console.log(`[WebSocket] 建立新连接 - socketId: ${socketId}`);
+    const wsUrl = `${websocketURI()}/api/agent-invocation/${socketId}`;
+    console.log(`[WebSocket] 连接URL: ${wsUrl}`);
 
-      // 🔥 WebSocket连接状态监听
-      socket.addEventListener("open", () => {
-        console.log(`[WebSocket] 连接成功: ${wsUrl}`);
-      });
+    const socket = new WebSocket(wsUrl);
+    socket.supportsAgentStreaming = false;
+    console.log(`[WebSocket] WebSocket对象创建完成`);
+    return socket;
+  };
 
-      socket.addEventListener("error", (error) => {
-        console.error(`[WebSocket] 连接失败:`, error);
-        console.error(`[WebSocket] 连接URL: ${wsUrl}`);
-      });
+  /**
+   * 🔥 设置事件监听器的函数
+   */
+  const setupEventListeners = (socket) => {
+    if (!socket) return;
 
-      // 🔥 监听中断事件：用户主动中断Agent会话
-      window.addEventListener(ABORT_STREAM_EVENT, () => {
-        window.dispatchEvent(new CustomEvent(AGENT_SESSION_END));  // 通知其他组件Agent会话结束
-        websocket.close();  // 关闭WebSocket连接
-      });
+    // 连接建立事件
+    socket.addEventListener("open", () => {
+      console.log(`[WebSocket] 连接成功: ${socket.url}`);
+    });
 
-      // 🔥 监听WebSocket消息：接收Agent的实时响应
-      socket.addEventListener("message", (event) => {
-        setLoadingResponse(true);  // 设置加载状态
+    // 连接错误事件
+    socket.addEventListener("error", (error) => {
+      console.error(`[WebSocket] 连接失败:`, error);
+    });
 
-        try {
-          // 🔥 处理Agent响应消息
-          handleSocketResponse(socket, event, setChatHistory);
-        } catch (e) {
-          console.error("解析Agent响应失败:", e);
-          // 解析失败时结束Agent会话
-          window.dispatchEvent(new CustomEvent(AGENT_SESSION_END));
-          socket.close();
-        }
-        setLoadingResponse(false);  // 结束加载状态
-      });
+    // 连接关闭事件
+    socket.addEventListener("close", (event) => {
+      console.log(`[WebSocket] 连接关闭 - 代码: ${event.code}, 原因: ${event.reason}`);
+      window.dispatchEvent(new CustomEvent(AGENT_SESSION_END));
 
-      // 🔥 监听WebSocket关闭事件：Agent会话结束
-      socket.addEventListener("close", (_event) => {
-        window.dispatchEvent(new CustomEvent(AGENT_SESSION_END));  // 通知其他组件
-
-        // 🔥 添加Agent会话完成消息到聊天历史
-        setChatHistory((prev) => [
-          ...prev.filter((msg) => !!msg.content),  // 保留有内容的消息
-          {
-            uuid: v4(),
-            type: "statusResponse",
-            content: "Agent session complete.",      // 会话完成提示
-            role: "assistant",
-            sources: [],
-            closed: true,
-            error: null,
-            animate: false,
-            pending: false,
-          },
-        ]);
-
-        // 🔥 清理连接状态
-        setLoadingResponse(false);
-        setWebsocket(null);
-        setSocketId(null);
-      });
-
-      // 🔥 设置WebSocket实例到状态
-      setWebsocket(socket);
-
-      // 🔥 触发Agent会话开始事件
-      window.dispatchEvent(new CustomEvent(AGENT_SESSION_START));
-      window.dispatchEvent(new CustomEvent(CLEAR_ATTACHMENTS_EVENT));
-
-    } catch (e) {
-      // 🔥 WebSocket连接失败处理
-      console.error("WebSocket连接失败:", e);
-
-      // 添加错误消息到聊天历史
       setChatHistory((prev) => [
         ...prev.filter((msg) => !!msg.content),
         {
           uuid: v4(),
-          type: "abort",
-          content: e.message,          // 错误信息
+          type: "statusResponse",
+          content: `Agent session complete (${event.code})`,
           role: "assistant",
           sources: [],
           closed: true,
-          error: e.message,
+          error: null,
           animate: false,
           pending: false,
         },
       ]);
 
-      // 清理状态
       setLoadingResponse(false);
       setWebsocket(null);
-      // 🔥 只有当确实有WebSocket连接时才清理socketId，避免清理函数在effect执行时重置状态
-      if (websocket) {
-        setSocketId(null);
+      setSocketId(null);
+    });
+
+    // 消息接收事件
+    socket.addEventListener("message", (event) => {
+      // 处理心跳消息
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "ping") {
+          socket.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
+          console.log("[WebSocket心跳] 收到旧版ping，已回复pong");
+          return;
+        }
+
+        if (data.type === "heartbeat") {
+          console.log(`[WebSocket心跳] 收到heartbeat #${data.counter}, 状态: ${data.status}`);
+
+          // 立即回复pong，告知服务器连接正常
+          if (data.server) {
+            socket.send(JSON.stringify({
+              type: "pong",
+              timestamp: Date.now(),
+              counter: data.counter,
+              client: true
+            }));
+            console.log(`[WebSocket心跳] 已回复pong给heartbeat #${data.counter}`);
+          }
+          return;
+        }
+      } catch (e) {
+        // 非JSON消息，继续正常处理
       }
-    }
+
+      setLoadingResponse(true);
+      try {
+        handleSocketResponse(socket, event, setChatHistory);
+      } catch (e) {
+        console.error("解析Agent响应失败:", e);
+        window.dispatchEvent(new CustomEvent(AGENT_SESSION_END));
+        socket.close();
+      }
+      setLoadingResponse(false);
+    });
+
+    // 中断事件监听
+    window.addEventListener(ABORT_STREAM_EVENT, () => {
+      window.dispatchEvent(new CustomEvent(AGENT_SESSION_END));
+      socket.close();
+    });
+  };
+
+  // 执行连接建立流程
+  const newSocket = establishConnection();
+  if (newSocket) {
+    setupEventListeners(newSocket);
+    setWebsocket(newSocket);
+    window.dispatchEvent(new CustomEvent(AGENT_SESSION_START));
+    window.dispatchEvent(new CustomEvent(CLEAR_ATTACHMENTS_EVENT));
   }
 
-  handleWSS();  // 执行WebSocket处理
-}, [socketId]);  // 依赖项：socketId变化时重新建立连接
+  // 清理函数：组件卸载时调用
+  return cleanupConnection;
+}, [socketId]); // 只依赖socketId
 
+  
   // ==================== 组件渲染 ====================
 return (
     <div

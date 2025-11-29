@@ -56,16 +56,6 @@ function formatRoleName(roleName) {
 }
 
 /**
- * 获取fallback的PromptX角色列表
- * 注意：此函数仅在MCP服务器完全不可用时使用，返回空列表而不是硬编码角色
- * @returns {Array} 空的角色列表
- */
-function getFallbackPromptXRoles() {
-  console.warn('PromptX MCP服务器不可用，且无缓存数据。返回空角色列表。');
-  return [];
-}
-
-/**
  * 从MCP discover获取PromptX角色
  * @returns {Promise<Array|null>} 角色列表
  */
@@ -108,6 +98,7 @@ async function getPromptXRolesFromMCP() {
         .join('\n');
 
       console.log('discover返回的文本内容长度:', textContent.length);
+      console.log('discover返回的原始文本内容前500字符:', textContent.substring(0, 500));
 
       // 解析角色信息
       const lines = textContent.split('\n');
@@ -164,10 +155,21 @@ async function getPromptXRolesFromMCP() {
         }
       }
 
-      console.log(`成功解析出 ${rolesData.length} 个角色`);
-      return rolesData;
+      // 去重：确保没有重复的 roleId
+      const uniqueRoles = [];
+      const seenRoleIds = new Set();
 
-      return rolesData;
+      for (const role of rolesData) {
+        if (!seenRoleIds.has(role.id)) {
+          seenRoleIds.add(role.id);
+          uniqueRoles.push(role);
+        } else {
+          console.warn(`发现重复角色，已跳过: ${role.id}`);
+        }
+      }
+
+      console.log(`解析出 ${rolesData.length} 个角色，去重后剩余 ${uniqueRoles.length} 个`);
+      return uniqueRoles;
     } else {
       console.warn('PromptX MCP服务器不可用');
       return null;
@@ -175,84 +177,6 @@ async function getPromptXRolesFromMCP() {
   } catch (error) {
     console.error('MCP discover同步失败:', error);
     return null;
-  }
-}
-
-/**
- * 确保工作区有对应的所有角色配置记录
- * @param {number} workspaceId - 工作区ID
- * @param {Array} availableRoles - 可用角色列表
- */
-async function ensureWorkspaceRoleConfigs(workspaceId, availableRoles, prisma) {
-  try {
-    console.log(`确保工作区 ${workspaceId} 有 ${availableRoles.length} 个角色的配置记录`);
-
-    // 获取工作区现有的角色配置
-    const existingConfigs = await prisma.workspace_promptx_roles.findMany({
-      where: { workspaceId }
-    });
-
-    const existingRoleIds = new Set(existingConfigs.map(config => config.roleId));
-    console.log(`工作区现有角色配置数量: ${existingConfigs.length}`);
-
-    // 为新角色创建配置记录
-    const newRoles = availableRoles.filter(role => !existingRoleIds.has(role.id));
-    if (newRoles.length > 0) {
-      console.log(`为 ${newRoles.length} 个新角色创建配置记录`);
-
-      // 使用upsert避免重复创建错误
-      let createdCount = 0;
-      for (const role of newRoles) {
-        try {
-          await prisma.workspace_promptx_roles.create({
-            data: {
-              workspaceId,
-              roleId: role.id,
-              enabled: false, // 默认禁用，让用户手动启用
-              addedBy: null,   // 系统创建
-              updatedBy: null
-            }
-          });
-          createdCount++;
-        } catch (error) {
-          if (error.code === 'P2002') {
-            console.log(`角色 ${role.id} 的配置记录已存在，跳过创建`);
-          } else {
-            throw error;
-          }
-        }
-      }
-      const roleConfigs = { count: createdCount };
-
-      console.log(`成功创建 ${roleConfigs.count} 个角色配置记录`);
-
-      // 记录审计日志
-      for (const role of newRoles) {
-        await roleAuth.logConfigurationChange(
-          workspaceId,
-          role.id,
-          'ROLE_AUTO_CREATED',
-          null,
-          { roleId: role.id, enabled: false },
-          null,
-          request.ip,
-          request.get('User-Agent')
-        );
-      }
-    }
-
-    // 检查是否有角色被移除（可选：可以清理不存在的角色配置）
-    const availableRoleIds = new Set(availableRoles.map(role => role.id));
-    const orphanedConfigs = existingConfigs.filter(config => !availableRoleIds.has(config.roleId));
-
-    if (orphanedConfigs.length > 0) {
-      console.log(`发现 ${orphanedConfigs.length} 个孤立的角色配置，可以选择清理`);
-      // 这里可以选择删除不存在的角色配置，或者保留它们
-    }
-
-  } catch (error) {
-    console.error('确保工作区角色配置失败:', error);
-    throw error;
   }
 }
 
@@ -596,6 +520,7 @@ function workspacePromptXRolesEndpoints(app) {
   );
 
   // GET /workspaces/:id/promptx-available-roles
+  // 实时从MCP Discover获取角色列表，不使用缓存
   app.get(
     "/workspaces/:workspaceId/promptx-available-roles",
     [validatedRequest, allowAllUsers],
@@ -603,99 +528,153 @@ function workspacePromptXRolesEndpoints(app) {
       try {
         const workspaceId = validateWorkspaceId(request.params.workspaceId);
 
-        // 使用现有cache_data表缓存角色数据
-        const cacheKey = 'promptx_available_roles';
-        let availableRoles = [];
+        console.log(`[RoleSync] 工作区 ${workspaceId} 请求角色列表（实时查询）`);
 
-        try {
-          // 查询缓存表中的角色数据
-          const cachedRoles = await prisma.cache_data.findFirst({
+        // 步骤1：直接从MCP Discover获取实时数据（不走缓存）
+        const mcpRoles = await getPromptXRolesFromMCP();
+
+        if (!mcpRoles || mcpRoles.length === 0) {
+          console.warn('[RoleSync] MCP Discover未返回角色数据');
+          return response.status(200).json({
+            success: true,
+            data: [],
+            meta: {
+              source: 'mcp-realtime',
+              timestamp: new Date().toISOString(),
+              warning: 'MCP Discover未返回数据'
+            }
+          });
+        }
+
+        console.log(`[RoleSync] MCP返回 ${mcpRoles.length} 个角色`);
+      console.log('[RoleSync] MCP返回的角色列表:', mcpRoles.map(r => ({ id: r.id, name: r.name })));
+
+        // 步骤2：获取工作区现有配置（仅配置，不是数据源）
+        const configs = await prisma.workspace_promptx_roles.findMany({
+          where: { workspaceId },
+          include: {
+            addedBy_user: {
+              select: { id: true, username: true }
+            }
+          }
+        });
+
+        console.log(`[RoleSync] 工作区现有 ${configs.length} 个角色配置`);
+
+        // 步骤3：清理孤立配置（MCP中不存在的角色）
+        const mcpRoleIds = new Set(mcpRoles.map(r => r.id));
+        const orphanedConfigs = configs.filter(c => !mcpRoleIds.has(c.roleId));
+
+        if (orphanedConfigs.length > 0) {
+          console.log(`[RoleSync] 发现 ${orphanedConfigs.length} 个孤立配置，开始清理:`,
+            orphanedConfigs.map(c => c.roleId));
+
+          await prisma.workspace_promptx_roles.deleteMany({
             where: {
-              name: cacheKey,
-              belongsTo: 'promptx'
+              workspaceId,
+              roleId: { in: orphanedConfigs.map(c => c.roleId) }
             }
           });
 
-          if (cachedRoles) {
-            console.log('从cache_data表获取PromptX角色列表');
-            availableRoles = JSON.parse(cachedRoles.data);
-
-            // 检查缓存是否过期（超过24小时则刷新）
-            const cacheAge = Date.now() - new Date(cachedRoles.lastUpdatedAt).getTime();
-            const maxCacheAge = 24 * 60 * 60 * 1000; // 24小时
-
-            if (cacheAge > maxCacheAge) {
-              console.log('缓存已过期，尝试从MCP discover刷新角色列表');
-              try {
-                const mcpRoles = await getPromptXRolesFromMCP();
-                if (mcpRoles && mcpRoles.length > 0) {
-                  availableRoles = mcpRoles;
-                  // 更新缓存
-                  await prisma.cache_data.update({
-                    where: { id: cachedRoles.id },
-                    data: {
-                      data: JSON.stringify(availableRoles),
-                      lastUpdatedAt: new Date()
-                    }
-                  });
-                  console.log('缓存已更新');
-                }
-              } catch (refreshError) {
-                console.warn('刷新缓存失败，使用现有缓存:', refreshError.message);
-                // 继续使用现有缓存，不中断服务
-              }
-            }
-          } else {
-            console.log('缓存未找到，尝试从MCP discover获取并缓存角色');
-            // 如果缓存不存在，尝试从MCP discover获取并缓存
-            const mcpRoles = await getPromptXRolesFromMCP();
-            if (mcpRoles && mcpRoles.length > 0) {
-              availableRoles = mcpRoles;
-              // 保存到现有的cache_data表
-              await prisma.cache_data.create({
-                data: {
-                  name: cacheKey,
-                  data: JSON.stringify(availableRoles),
-                  belongsTo: 'promptx'
-                }
-              });
-              console.log('已创建新的角色缓存');
-            } else {
-              // 使用空列表作为fallback，避免硬编码
-              availableRoles = getFallbackPromptXRoles();
-            }
+          // 记录审计日志
+          for (const orphaned of orphanedConfigs) {
+            await roleAuth.logConfigurationChange(
+              workspaceId,
+              orphaned.roleId,
+              'ROLE_AUTO_CLEANED',
+              { enabled: orphaned.enabled, customName: orphaned.customName },
+              null,
+              null,
+              'system',
+              'auto-cleanup'
+            );
           }
-        } catch (cacheError) {
-          console.error('读取cache_data失败:', cacheError);
-          // 尝试直接从MCP获取
-          try {
-            const mcpRoles = await getPromptXRolesFromMCP();
-            if (mcpRoles && mcpRoles.length > 0) {
-              availableRoles = mcpRoles;
-              console.log('直接从MCP获取角色列表成功');
-            } else {
-              availableRoles = getFallbackPromptXRoles();
-            }
-          } catch (mcpError) {
-            console.error('MCP获取也失败:', mcpError);
-            availableRoles = getFallbackPromptXRoles();
-          }
+
+          console.log(`[RoleSync] 已清理 ${orphanedConfigs.length} 个孤立配置`);
         }
 
-        // 确保工作区有对应的角色配置记录
-        if (availableRoles.length > 0) {
-          await ensureWorkspaceRoleConfigs(workspaceId, availableRoles, prisma);
+        // 步骤4：为新角色创建默认配置
+        const configMap = new Map(configs.map(c => [c.roleId, c]));
+        const newRoles = mcpRoles.filter(r => !configMap.has(r.id));
+
+        if (newRoles.length > 0) {
+          console.log(`[RoleSync] 发现 ${newRoles.length} 个新角色，创建默认配置:`,
+            newRoles.map(r => r.id));
+
+          await prisma.workspace_promptx_roles.createMany({
+            data: newRoles.map(r => ({
+              workspaceId,
+              roleId: r.id,
+              enabled: false,  // 默认禁用，让用户手动启用
+              addedBy: null,   // 系统创建
+              updatedBy: null
+            })),
+            skipDuplicates: true
+          });
+
+          // 更新configMap以包含新创建的配置
+          for (const role of newRoles) {
+            configMap.set(role.id, {
+              roleId: role.id,
+              enabled: false,
+              customName: null,
+              customDescription: null,
+              addedBy: null,
+              addedBy_user: null
+            });
+          }
+
+          console.log(`[RoleSync] 已创建 ${newRoles.length} 个默认配置`);
         }
+
+        // 步骤5：合并MCP数据和配置数据返回
+        const result = mcpRoles.map(role => {
+          const config = configMap.get(role.id);
+
+          return {
+            // MCP数据（主数据源）
+            id: role.id,
+            name: role.name,
+            description: role.description,
+
+            // 配置表数据（附加配置）
+            enabled: config?.enabled ?? false,
+            customName: config?.customName ?? null,
+            customDescription: config?.customDescription ?? null,
+            addedBy: config?.addedBy ?? null,
+            addedBy_user: config?.addedBy_user ?? null,
+            lastUpdatedAt: config?.lastUpdatedAt ?? null,
+
+            // 派生数据
+            source: config?.addedBy ? 'user' : 'system',
+            hasConfig: !!config
+          };
+        });
+
+        console.log(`[RoleSync] 返回 ${result.length} 个角色（已清理 ${orphanedConfigs.length} 个，新增 ${newRoles.length} 个）`);
+
+        // 设置防缓存头，确保浏览器获取最新数据
+        response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        response.setHeader("Pragma", "no-cache");
+        response.setHeader("Expires", "0");
 
         response.status(200).json({
           success: true,
-          data: availableRoles
+          data: result,
+          meta: {
+            source: 'mcp-realtime',
+            timestamp: new Date().toISOString(),
+            total: result.length,
+            cleaned: orphanedConfigs.length,
+            created: newRoles.length
+          }
         });
+
       } catch (error) {
-        console.error('获取可用角色失败:', error);
+        console.error('[RoleSync] 获取可用角色失败:', error);
         response.status(500).json({
           success: false,
-          error: '获取可用角色失败'
+          error: 'MCP Discover失败: ' + error.message
         });
       }
     }
@@ -831,6 +810,7 @@ function workspacePromptXRolesEndpoints(app) {
   );
 
   // POST /workspaces/:id/promptx-refresh-roles
+  // 手动触发角色同步（实际上GET接口已经是实时的，这个接口主要用于强制触发MCP刷新）
   app.post(
     "/workspaces/:workspaceId/promptx-refresh-roles",
     [validatedRequest, allowAllUsers],
@@ -838,64 +818,122 @@ function workspacePromptXRolesEndpoints(app) {
       try {
         const workspaceId = validateWorkspaceId(request.params.workspaceId);
 
-        console.log(`工作区 ${workspaceId} 请求刷新PromptX角色缓存`);
+        console.log(`[RoleSync] 工作区 ${workspaceId} 手动触发角色刷新`);
 
-        // 强制从MCP discover获取最新角色列表
+        // 触发MCP资源刷新（如果需要）
+        try {
+          const mcpLayer = new MCPCompatibilityLayer();
+          await mcpLayer.refreshPromptXResources();
+          console.log(`[RoleSync] MCP资源刷新已触发`);
+        } catch (mcpError) {
+          console.warn(`[RoleSync] MCP刷新失败:`, mcpError.message);
+        }
+
+        // 从MCP Discover获取最新角色列表
         const mcpRoles = await getPromptXRolesFromMCP();
-        let availableRoles = [];
 
-        if (mcpRoles && mcpRoles.length > 0) {
-          availableRoles = mcpRoles;
+        if (!mcpRoles || mcpRoles.length === 0) {
+          console.warn('[RoleSync] MCP Discover未返回角色数据');
+          return response.status(200).json({
+            success: true,
+            data: [],
+            message: '未获取到角色数据，请检查MCP服务器状态'
+          });
+        }
 
-          // 更新或创建缓存
-          const cacheKey = 'promptx_available_roles';
-          const existingCache = await prisma.cache_data.findFirst({
+        // 获取工作区配置
+        const configs = await prisma.workspace_promptx_roles.findMany({
+          where: { workspaceId },
+          include: {
+            addedBy_user: {
+              select: { id: true, username: true }
+            }
+          }
+        });
+
+        // 清理孤立配置
+        const mcpRoleIds = new Set(mcpRoles.map(r => r.id));
+        const orphanedConfigs = configs.filter(c => !mcpRoleIds.has(c.roleId));
+
+        if (orphanedConfigs.length > 0) {
+          await prisma.workspace_promptx_roles.deleteMany({
             where: {
-              name: cacheKey,
-              belongsTo: 'promptx'
+              workspaceId,
+              roleId: { in: orphanedConfigs.map(c => c.roleId) }
             }
           });
+          console.log(`[RoleSync] 已清理 ${orphanedConfigs.length} 个孤立配置`);
+        }
 
-          if (existingCache) {
-            await prisma.cache_data.update({
-              where: { id: existingCache.id },
-              data: {
-                data: JSON.stringify(availableRoles),
-                lastUpdatedAt: new Date()
-              }
-            });
-          } else {
-            await prisma.cache_data.create({
-              data: {
-                name: cacheKey,
-                data: JSON.stringify(availableRoles),
-                belongsTo: 'promptx'
-              }
+        // 为新角色创建默认配置
+        const configMap = new Map(configs.map(c => [c.roleId, c]));
+        const newRoles = mcpRoles.filter(r => !configMap.has(r.id));
+
+        if (newRoles.length > 0) {
+          await prisma.workspace_promptx_roles.createMany({
+            data: newRoles.map(r => ({
+              workspaceId,
+              roleId: r.id,
+              enabled: false,
+              addedBy: null,
+              updatedBy: null
+            })),
+            skipDuplicates: true
+          });
+
+          for (const role of newRoles) {
+            configMap.set(role.id, {
+              roleId: role.id,
+              enabled: false,
+              customName: null,
+              customDescription: null,
+              addedBy: null,
+              addedBy_user: null
             });
           }
-
-          console.log(`角色缓存已刷新，共 ${availableRoles.length} 个角色`);
-        } else {
-          console.warn('MCP服务器未返回有效角色数据');
+          console.log(`[RoleSync] 已创建 ${newRoles.length} 个默认配置`);
         }
 
-        // 确保工作区有对应的角色配置记录
-        if (availableRoles.length > 0) {
-          await ensureWorkspaceRoleConfigs(workspaceId, availableRoles, prisma);
-        }
+        // 合并数据
+        const result = mcpRoles.map(role => {
+          const config = configMap.get(role.id);
+          return {
+            id: role.id,
+            name: role.name,
+            description: role.description,
+            enabled: config?.enabled ?? false,
+            customName: config?.customName ?? null,
+            customDescription: config?.customDescription ?? null,
+            addedBy: config?.addedBy ?? null,
+            addedBy_user: config?.addedBy_user ?? null,
+            source: config?.addedBy ? 'user' : 'system',
+            hasConfig: !!config
+          };
+        });
+
+        // 设置防缓存头，确保浏览器获取最新数据
+        response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        response.setHeader("Pragma", "no-cache");
+        response.setHeader("Expires", "0");
 
         response.status(200).json({
           success: true,
-          data: availableRoles,
-          message: availableRoles.length > 0
-            ? `成功刷新角色列表，共 ${availableRoles.length} 个角色`
-            : '未获取到角色数据，请检查MCP服务器状态'
+          data: result,
+          message: `成功刷新角色列表，共 ${result.length} 个角色（清理 ${orphanedConfigs.length} 个，新增 ${newRoles.length} 个）`,
+          meta: {
+            source: 'mcp-realtime',
+            timestamp: new Date().toISOString(),
+            total: result.length,
+            cleaned: orphanedConfigs.length,
+            created: newRoles.length
+          }
         });
+
       } catch (error) {
-        console.error('刷新角色缓存失败:', error);
+        console.error('[RoleSync] 刷新角色失败:', error);
         response.status(500).json({
           success: false,
-          error: '刷新角色缓存失败: ' + error.message
+          error: '刷新角色失败: ' + error.message
         });
       }
     }

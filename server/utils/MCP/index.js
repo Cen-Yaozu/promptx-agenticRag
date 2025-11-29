@@ -112,10 +112,15 @@ class MCPCompatibilityLayer extends MCPHypervisor {
 
                       if (name === 'promptx' && tool.name === 'action' && args.role) {
                         roleToCheck = args.role;
-                      } else if (name === 'promptx' && tool.name === 'discover') {
-                        // discover工具允许执行，但需要过滤结果
+                      } else if (name === 'promptx' && ['discover', 'project', 'toolx', 'recall', 'remember'].includes(tool.name)) {
+                        // 系统工具和认知工具允许执行，但discover需要过滤结果
                         shouldCheckAuthorization = false;
-                        console.log(`[MCP工具执行] discover工具允许执行，将过滤结果`);
+                        console.log(`[MCP工具执行] ${tool.name}工具允许执行`);
+
+                        // 对于discover工具，额外标记需要过滤结果
+                        if (tool.name === 'discover') {
+                          console.log(`[MCP工具执行] discover工具将过滤结果`);
+                        }
                       }
 
                       let isAuthorized = true; // 默认允许执行
@@ -296,9 +301,45 @@ class MCPCompatibilityLayer extends MCPHypervisor {
                     aibitat.introspect(
                       `MCP server: ${name}:${tool.name} completed successfully`
                     );
-                    return typeof filteredResult === "object"
+
+                    // 🔍 DEBUG: 调试工具返回结果的格式
+                    console.log('\n' + '='.repeat(80));
+                    console.log(`🔍 [MCP工具返回调试] 工具: ${name}:${tool.name}`);
+                    console.log('='.repeat(80));
+                    console.log('📦 原始结果类型:', typeof filteredResult);
+                    console.log('📦 原始结果是否为对象:', typeof filteredResult === "object");
+                    console.log('📦 原始结果是否为数组:', Array.isArray(filteredResult));
+
+                    if (typeof filteredResult === "object" && filteredResult !== null) {
+                      console.log('📦 原始结果的字段:', Object.keys(filteredResult));
+                      console.log('📦 原始结果完整内容:');
+                      console.log(JSON.stringify(filteredResult, null, 2));
+
+                      // 检查是否有content字段
+                      if (filteredResult.content) {
+                        console.log('📝 发现content字段！');
+                        console.log('📝 content类型:', typeof filteredResult.content);
+                        console.log('📝 content是否为数组:', Array.isArray(filteredResult.content));
+                        if (Array.isArray(filteredResult.content)) {
+                          console.log('📝 content数组长度:', filteredResult.content.length);
+                          console.log('📝 content[0]:', filteredResult.content[0]);
+                        }
+                      }
+                    } else {
+                      console.log('📦 原始结果内容:', filteredResult);
+                    }
+
+                    const finalResult = typeof filteredResult === "object"
                       ? JSON.stringify(filteredResult)
                       : String(filteredResult);
+
+                    console.log('\n🎯 最终返回给AI的内容:');
+                    console.log('🎯 类型:', typeof finalResult);
+                    console.log('🎯 长度:', finalResult.length, '字符');
+                    console.log('🎯 前500字符:', finalResult.substring(0, 500));
+                    console.log('='.repeat(80) + '\n');
+
+                    return finalResult;
                   } catch (error) {
                     aibitat.handlerProps.log(
                       `MCP server: ${name}:${tool.name} failed with error:`,

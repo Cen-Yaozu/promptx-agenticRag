@@ -213,7 +213,6 @@ const Workspace = {
 
         // 导入PromptX相关函数
         const { getPromptXRolesFromMCP } = require('../endpoints/workspacePromptXRoles');
-        const { ensureWorkspaceRoleConfigs } = require('../endpoints/workspacePromptXRoles');
 
         // 从MCP discover获取角色列表
         const availableRoles = await getPromptXRolesFromMCP();
@@ -223,7 +222,18 @@ const Workspace = {
           const prisma = new PrismaClient();
 
           try {
-            await ensureWorkspaceRoleConfigs(workspace.id, availableRoles, prisma);
+            // 直接为新角色创建默认配置（不使用缓存的ensureWorkspaceRoleConfigs函数）
+            const mcpRoleIds = availableRoles.map(r => r.id);
+            await prisma.workspace_promptx_roles.createMany({
+              data: mcpRoleIds.map(roleId => ({
+                workspaceId: workspace.id,
+                roleId: roleId,
+                enabled: false,  // 默认禁用，让用户手动启用
+                addedBy: null,   // 系统创建
+                updatedBy: null
+              })),
+              skipDuplicates: true
+            });
             console.log(`[Workspace] PromptX角色库初始化成功，共 ${availableRoles.length} 个角色 (工作区ID: ${workspace.id})`);
           } finally {
             await prisma.$disconnect();

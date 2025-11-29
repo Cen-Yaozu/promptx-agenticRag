@@ -219,7 +219,12 @@ const WorkspacePromptXRoles = {
         `${API_BASE}/workspaces/${workspaceId}/promptx-available-roles`,
         {
           method: "GET",
-          headers: baseHeaders(),
+          headers: {
+            ...baseHeaders(),
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          },
         }
       );
 

@@ -1,8 +1,9 @@
 {
   "mcpServers": {
     "promptx": {
-      "type": "streamable",
-      "url": "http://promptx:5203/mcp"
+      "command": "npx",
+      "args": ["-y", "@promptx/mcp-server"],
+      "env": {}
     }
   }
 }
