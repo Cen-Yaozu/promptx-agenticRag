@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "promptx": {
+      "type": "streamable",
+      "url": "http://promptx:5203/mcp"
+    }
+  }
+}

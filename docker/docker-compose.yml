@@ -7,12 +7,7 @@ networks:
 services:
   anything-llm:
     container_name: anythingllm
-    build:
-      context: ../.
-      dockerfile: ./docker/Dockerfile
-      args:
-        ARG_UID: ${UID:-1000}
-        ARG_GID: ${GID:-1000}
+    image: azu12138/promptx-agenticrag:latest
     cap_add:
       - SYS_ADMIN
     volumes:
@@ -20,6 +15,7 @@ services:
       - "../server/storage:/app/server/storage"
       - "../collector/hotdir/:/app/collector/hotdir"
       - "../collector/outputs/:/app/collector/outputs"
+      - "./mcp_servers.json:/app/server/storage/plugins/anythingllm_mcp_servers.json"
     user: "${UID:-1000}:${GID:-1000}"
     ports:
       - "3001:3001"
@@ -29,3 +25,19 @@ services:
       - anything-llm
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      - promptx
+    restart: unless-stopped
+
+  promptx:
+    container_name: promptx
+    image: deepracticexs/promptx:latest
+    ports:
+      - "5203:5203"
+    volumes:
+      - "./.promptx:/root/.promptx"
+    networks:
+      - anything-llm
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production

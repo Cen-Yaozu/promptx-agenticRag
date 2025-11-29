@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "promptx": {
+      "type": "streamable",
+      "url": "http://promptx:5203/mcp",
+      "comment": "Docker部署时使用容器名promptx访问"
+    }
+  },
+  "_comment": "本地开发时将url改为 http://127.0.0.1:5203/mcp"
+}
