@@ -1,3 +1,8 @@
+// 如果NODE_ENV未设置，默认设为development
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = 'development';
+}
+
 process.env.NODE_ENV === "development"
   ? require("dotenv").config({ path: `.env.${process.env.NODE_ENV}` })
   : require("dotenv").config();
@@ -28,6 +33,7 @@ const { browserExtensionEndpoints } = require("./endpoints/browserExtension");
 const { communityHubEndpoints } = require("./endpoints/communityHub");
 const { agentFlowEndpoints } = require("./endpoints/agentFlows");
 const { mcpServersEndpoints } = require("./endpoints/mcpServers");
+const { workspacePromptXRolesEndpoints } = require("./endpoints/workspacePromptXRoles");
 const { mobileEndpoints } = require("./endpoints/mobile");
 const { deeconfigEndpoints } = require("./endpoints/deeconfig");
 const { httpLogger } = require("./middleware/httpLogger");
@@ -79,6 +85,7 @@ developerEndpoints(app, apiRouter);
 communityHubEndpoints(apiRouter);
 agentFlowEndpoints(apiRouter);
 mcpServersEndpoints(apiRouter);
+workspacePromptXRolesEndpoints(apiRouter);
 mobileEndpoints(apiRouter);
 deeconfigEndpoints(apiRouter);
 

@@ -1,4 +1,5 @@
 const MCPHypervisor = require("./hypervisor");
+const WorkspaceRoleAuth = require("../workspaceRoleAuth");
 
 class MCPCompatibilityLayer extends MCPHypervisor {
   static _instance;
@@ -32,8 +33,41 @@ class MCPCompatibilityLayer extends MCPHypervisor {
     const tools = (await mcp.listTools()).tools;
     if (!tools.length) return null;
 
+    // 获取工作区授权的角色列表（如果可能的话）
+    let authorizedRoles = [];
+    if (_aibitat?.handlerProps?.invocation?.workspace_id) {
+      const workspaceId = _aibitat.handlerProps.invocation.workspace_id;
+      try {
+        const roleAuth = new WorkspaceRoleAuth();
+        // 获取所有角色，不过滤系统工具
+        const roles = await roleAuth.getAuthorizedRoles(workspaceId);
+        authorizedRoles = roles;
+      } catch (error) {
+        console.warn('Failed to get authorized roles, allowing all tools:', error.message);
+        // 如果获取授权角色失败，允许所有工具
+      }
+    }
+
     const plugins = [];
     for (const tool of tools) {
+      // 检查工具是否被授权
+      // 对于PromptX服务器，工具名就是角色ID
+      if (name === 'promptx' && authorizedRoles.length > 0) {
+        // 系统工具和认知工具始终允许
+        const systemAndCognitiveTools = [
+          'discover',    // 发现工具
+          'project',     // 项目工具
+          'toolx',       // ToolX工具
+          'action',      // 激活工具（认知工具）
+          'recall',      // 回忆工具（认知工具）
+          'remember'     // 记忆工具（认知工具）
+        ];
+        if (!systemAndCognitiveTools.includes(tool.name) && !authorizedRoles.includes(tool.name)) {
+          // 跳过未授权的工具，这样它就不会出现在discover响应中
+          console.log(`Filtering out unauthorized tool: ${tool.name}`);
+          continue;
+        }
+      }
       plugins.push({
         name: `${name}-${tool.name}`,
         description: tool.description,
@@ -41,6 +75,13 @@ class MCPCompatibilityLayer extends MCPHypervisor {
           return {
             name: `${name}-${tool.name}`,
             setup: (aibitat) => {
+              console.log(`[MCP插件注册] ${name}-${tool.name} - aibitat.handlerProps:`,
+                aibitat.handlerProps ? {
+                  hasInvocation: !!aibitat.handlerProps.invocation,
+                  workspaceId: aibitat.handlerProps.invocation?.workspace_id,
+                  workspace: aibitat.handlerProps.invocation?.workspace ? { id: aibitat.handlerProps.invocation.workspace.id } : null
+                } : 'null');
+
               aibitat.function({
                 super: aibitat,
                 name: `${name}-${tool.name}`,
@@ -53,6 +94,81 @@ class MCPCompatibilityLayer extends MCPHypervisor {
                 },
                 handler: async function (args = {}) {
                   try {
+                    console.log(`[MCP工具执行] ${name}:${tool.name} - 开始权限检查`);
+                    console.log(`[MCP工具执行] aibitat.handlerProps:`, aibitat.handlerProps ? {
+                      hasInvocation: !!aibitat.handlerProps.invocation,
+                      workspaceId: aibitat.handlerProps.invocation?.workspace_id,
+                      workspace: aibitat.handlerProps.invocation?.workspace ? { id: aibitat.handlerProps.invocation.workspace.id } : null
+                    } : 'null');
+
+                    // 工作区权限检查
+                    const workspaceId = aibitat.handlerProps?.invocation?.workspace_id;
+                    console.log(`[MCP工具执行] 提取的workspaceId:`, workspaceId);
+
+                    if (workspaceId) {
+                      // 对于promptx-action工具，需要检查参数中的角色名
+                      let roleToCheck = tool.name;
+                      let shouldCheckAuthorization = true;
+
+                      if (name === 'promptx' && tool.name === 'action' && args.role) {
+                        roleToCheck = args.role;
+                      } else if (name === 'promptx' && tool.name === 'discover') {
+                        // discover工具允许执行，但需要过滤结果
+                        shouldCheckAuthorization = false;
+                        console.log(`[MCP工具执行] discover工具允许执行，将过滤结果`);
+                      }
+
+                      let isAuthorized = true; // 默认允许执行
+
+                      if (shouldCheckAuthorization) {
+                        const roleAuth = new WorkspaceRoleAuth();
+                        isAuthorized = await roleAuth.isRoleAuthorized(
+                          workspaceId,
+                          roleToCheck
+                        );
+                      }
+
+                      console.log(`[MCP工具执行] 角色"${roleToCheck}"在工作区${workspaceId}的授权结果:`, isAuthorized);
+
+                      if (!isAuthorized) {
+                        // 获取角色自定义名称（如果有的话）
+                        let roleDisplayName = roleToCheck;
+                        if (name === 'promptx') {
+                          // 这里可以查询数据库获取自定义名称，暂时使用原始名称
+                          roleDisplayName = roleToCheck;
+                        }
+
+                        const errorMsg = `⚠️ 权限限制：角色 "${roleDisplayName}" 在当前工作区中未被管理员启用。请联系工作区管理员启用此角色。`;
+
+                        console.log(`[MCP工具执行] 权限检查失败，返回错误信息:`, errorMsg);
+
+                        // 记录调试日志
+                        if (aibitat.handlerProps?.log) {
+                          aibitat.handlerProps.log(
+                            `MCP Authorization Failed: Role "${roleToCheck}" not authorized in workspace ${workspaceId}`,
+                            {
+                              workspaceId,
+                              toolName: tool.name,
+                              serverName: name,
+                              roleToCheck,
+                              reason: 'Role not enabled by workspace administrator'
+                            }
+                          );
+                        }
+
+                        if (aibitat.introspect) {
+                          aibitat.introspect(
+                            `User attempted to use unauthorized role: ${roleToCheck} in workspace ${workspaceId}`
+                          );
+                        }
+
+                        // 抛出错误以中断工具执行，这样AI会收到错误信息
+                        throw new Error(errorMsg);
+                      }
+                    } else {
+                      console.log(`[MCP工具执行] 警告: 无法获取workspaceId，跳过权限检查`);
+                    }
+
                     aibitat.handlerProps.log(
                       `Executing MCP server: ${name}:${tool.name} with args:`,
                       args
@@ -64,16 +180,125 @@ class MCPCompatibilityLayer extends MCPHypervisor {
                       name: tool.name,
                       arguments: args,
                     });
+
+                    // 对于discover工具，需要根据工作区权限过滤结果
+                    let filteredResult = result;
+                    if (name === 'promptx' && tool.name === 'discover' && workspaceId) {
+                      try {
+                        console.log(`[MCP工具执行] 开始过滤discover结果`);
+                        const roleAuth = new WorkspaceRoleAuth();
+                        const authorizedRoles = await roleAuth.getAuthorizedRoles(workspaceId);
+
+                        // 解析discover结果并过滤角色
+                        console.log(`[MCP工具执行] 开始处理discover结果`);
+
+                        if (result && typeof result === 'object') {
+                          console.log(`[MCP工具执行] 结果对象属性:`, Object.keys(result));
+
+                          // 尝试从不同字段获取内容 - 处理数组格式
+                          let resultText = '';
+                          if (Array.isArray(result.content)) {
+                            // 如果content是数组，取第一个元素的text
+                            resultText = result.content[0]?.text || '';
+                          } else if (result.content) {
+                            resultText = result.content.text || result.content;
+                          } else {
+                            resultText = result.text || result.result || result.data || String(result);
+                          }
+
+                          console.log(`[MCP工具执行] 提取到的结果文本长度:`, resultText.length);
+                          console.log(`[MCP工具执行] 授权角色列表 (${authorizedRoles.length}个):`, authorizedRoles);
+
+                          if (typeof resultText === 'string') {
+                            let filteredText = resultText;
+
+                            // 获取所有系统工具和认知工具（始终允许的）
+                            const alwaysAllowedTools = [
+                              'discover', 'project', 'toolx', 'action', 'recall', 'remember'
+                            ];
+
+                            // 如果有授权角色列表，进行过滤
+                            if (authorizedRoles.length > 0) {
+                              console.log(`[MCP工具执行] 开始过滤discover结果，原始文本长度:`, resultText.length);
+
+                              // 按行分割结果文本
+                              const lines = resultText.split('\n');
+                              console.log(`[MCP工具执行] 原始行数:`, lines.length);
+
+                              const filteredLines = [];
+
+                              for (let i = 0; i < lines.length; i++) {
+                                const line = lines[i];
+                                let shouldInclude = true;
+
+                                // 检查是否包含角色标识（匹配 \`roleName\` 格式）
+                                const roleMatches = line.match(/`([^`]+)`/g);
+
+                                console.log(`[MCP工具执行] 第${i+1}行: "${line.substring(0, 80)}${line.length > 80 ? '...' : ''}"`);
+                                if (roleMatches) {
+                                  console.log(`[MCP工具执行] 发现角色匹配:`, roleMatches);
+
+                                  // 检查每个角色是否被授权
+                                  shouldInclude = roleMatches.some(roleMatch => {
+                                    // 移除反引号获取角色名
+                                    const roleName = roleMatch.replace(/`/g, '').trim();
+
+                                    const isAuthorized = alwaysAllowedTools.includes(roleName) || authorizedRoles.includes(roleName);
+                                    console.log(`[MCP工具执行] 角色 "${roleName}" 授权状态:`, isAuthorized);
+                                    return isAuthorized;
+                                  });
+                                }
+
+                                console.log(`[MCP工具执行] 第${i+1}行是否包含:`, shouldInclude);
+
+                                // 如果该行包含至少一个授权角色，或者不包含角色，则保留该行
+                                if (shouldInclude) {
+                                  // 如果有未授权的角色，移除它们
+                                  let cleanedLine = line;
+                                  if (roleMatches) {
+                                    for (const roleMatch of roleMatches) {
+                                      const roleName = roleMatch.replace(/`/g, '').trim();
+
+                                      if (!alwaysAllowedTools.includes(roleName) && !authorizedRoles.includes(roleName)) {
+                                        console.log(`[MCP工具执行] 移除未授权角色: "${roleName}"`);
+                                        // 移除未授权的角色及其描述（从角色名到行尾）
+                                        cleanedLine = cleanedLine.replace(new RegExp(`- \`${roleMatch}\`[^\\n]*`), '');
+                                        // 或者使用更通用的移除逻辑
+                                        cleanedLine = cleanedLine.replace(new RegExp(`\`${roleMatch}\`[^\\n]*`), '').trim();
+                                      }
+                                    }
+                                  }
+                                  if (cleanedLine) {
+                                    filteredLines.push(cleanedLine);
+                                  }
+                                }
+                              }
+
+                              filteredText = filteredLines.join('\n').trim();
+                              console.log(`[MCP工具执行] 过滤后行数:`, filteredLines.length);
+                              console.log(`[MCP工具执行] 过滤后文本长度:`, filteredText.length);
+                              console.log(`[MCP工具执行] discover结果过滤完成`);
+                            }
+                          }
+                        } else {
+                          console.log(`[MCP工具执行] 结果格式不符合预期`);
+                        }
+                      } catch (filterError) {
+                        console.error(`[MCP工具执行] 过滤discover结果失败:`, filterError);
+                        // 过滤失败时返回原始结果
+                      }
+                    }
+
                     aibitat.handlerProps.log(
                       `MCP server: ${name}:${tool.name} completed successfully`,
-                      result
+                      filteredResult
                     );
                     aibitat.introspect(
                       `MCP server: ${name}:${tool.name} completed successfully`
                     );
-                    return typeof result === "object"
-                      ? JSON.stringify(result)
-                      : String(result);
+                    return typeof filteredResult === "object"
+                      ? JSON.stringify(filteredResult)
+                      : String(filteredResult);
                   } catch (error) {
                     aibitat.handlerProps.log(
                       `MCP server: ${name}:${tool.name} failed with error:`,

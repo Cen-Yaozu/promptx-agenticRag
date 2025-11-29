@@ -206,6 +206,36 @@ const Workspace = {
       // If creating with an admin User it wont change anything because admins can
       // view all workspaces anyway.
       if (!!creatorId) await WorkspaceUser.create(creatorId, workspace.id);
+
+      // 自动初始化PromptX角色库
+      try {
+        console.log(`[Workspace] 新工作区创建完成，开始初始化PromptX角色库 (ID: ${workspace.id})`);
+
+        // 导入PromptX相关函数
+        const { getPromptXRolesFromMCP } = require('../endpoints/workspacePromptXRoles');
+        const { ensureWorkspaceRoleConfigs } = require('../endpoints/workspacePromptXRoles');
+
+        // 从MCP discover获取角色列表
+        const availableRoles = await getPromptXRolesFromMCP();
+        if (availableRoles && availableRoles.length > 0) {
+          // 创建工作区的角色配置记录
+          const { PrismaClient } = require('@prisma/client');
+          const prisma = new PrismaClient();
+
+          try {
+            await ensureWorkspaceRoleConfigs(workspace.id, availableRoles, prisma);
+            console.log(`[Workspace] PromptX角色库初始化成功，共 ${availableRoles.length} 个角色 (工作区ID: ${workspace.id})`);
+          } finally {
+            await prisma.$disconnect();
+          }
+        } else {
+          console.log(`[Workspace] 无法获取PromptX角色列表，跳过初始化 (工作区ID: ${workspace.id})`);
+        }
+      } catch (initError) {
+        console.error(`[Workspace] PromptX角色库初始化失败 (工作区ID: ${workspace.id}):`, initError.message);
+        // 初始化失败不影响工作区创建，只记录错误日志
+      }
+
       return { workspace, message: null };
     } catch (error) {
       console.error(error.message);
