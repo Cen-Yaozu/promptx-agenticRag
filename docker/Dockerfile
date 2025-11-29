@@ -146,6 +146,11 @@ FROM build AS backend-build
 COPY --chown=anythingllm:anythingllm ./server /app/server/
 WORKDIR /app/server
 RUN yarn install --production --network-timeout 100000 && yarn cache clean
+
+# 🔥 预下载 PromptX MCP 服务器以解决 npx 启动不稳定问题
+RUN echo "🚀 预下载 PromptX MCP 服务器..." && \
+    npx --yes @promptx/mcp-server --version && \
+    echo "✅ PromptX MCP 服务器预下载完成"
 WORKDIR /app
 
 # Install collector dependencies

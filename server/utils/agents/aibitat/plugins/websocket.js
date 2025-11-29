@@ -1,7 +1,7 @@
 const chalk = require("chalk");
 const { Telemetry } = require("../../../../models/telemetry");
 const SOCKET_TIMEOUT_MS = 30 * 60 * 1_000; // 30 mins - 增加到30分钟
-const HEARTBEAT_INTERVAL_MS = 15 * 1_000; // 15 seconds - balanced heartbeat interval
+const HEARTBEAT_INTERVAL_MS = 30 * 1_000; // 30 seconds - 无感心跳间隔
 const CONNECTION_TIMEOUT_MS = 60 * 1_000; // 60 seconds - no response timeout
 
 /**
@@ -49,11 +49,14 @@ const websocket = {
     return {
       name: this.name,
       setup(aibitat) {
-        // 统一心跳机制 - 双向通信和连接健康检测
+        // 🚀 无感心跳机制 - 使用原生WebSocket ping/pong
         let heartbeatInterval = null;
-        let lastPongReceived = Date.now();
-        let heartbeatCounter = 0;
-        let isConnectionHealthy = true;
+        let isConnectionAlive = true;
+
+        const heartbeat = () => {
+          isConnectionAlive = true;
+          console.log(chalk.green("[WebSocket无感心跳] 收到pong响应，连接存活"));
+        };
 
         const startHeartbeat = () => {
           // 清除可能存在的旧定时器
@@ -61,96 +64,57 @@ const websocket = {
             clearInterval(heartbeatInterval);
           }
 
-          lastPongReceived = Date.now();
-          heartbeatCounter = 0;
-          isConnectionHealthy = true;
+          // 标记连接为存活状态
+          isConnectionAlive = true;
+          socket.isAlive = true;
+
+          // 设置pong监听器
+          socket.on('pong', heartbeat);
 
           heartbeatInterval = setInterval(() => {
             try {
               if (!socket || socket.readyState !== 1) { // 1 = WebSocket.OPEN
-                console.log(chalk.yellow("[WebSocket心跳] Socket未打开，停止心跳"));
+                console.log(chalk.yellow("[WebSocket无感心跳] Socket未打开，停止心跳"));
                 clearInterval(heartbeatInterval);
                 return;
               }
 
-              heartbeatCounter++;
-
-              // 检查连接健康状态
-              const timeSinceLastPong = Date.now() - lastPongReceived;
-              if (timeSinceLastPong > CONNECTION_TIMEOUT_MS) {
-                console.log(chalk.red(`[WebSocket心跳] 连接不健康，${timeSinceLastPong}ms未收到pong，标记为不健康`));
-                isConnectionHealthy = false;
-              }
-
-              // 发送心跳消息
-              const heartbeatMessage = {
-                type: "heartbeat",
-                timestamp: Date.now(),
-                counter: heartbeatCounter,
-                status: isConnectionHealthy ? "healthy" : "unhealthy",
-                server: true
-              };
-
-              socket.send(JSON.stringify(heartbeatMessage));
-              console.log(chalk.cyan(`[WebSocket心跳] 发送heartbeat #${heartbeatCounter}, 状态: ${isConnectionHealthy ? "健康" : "不健康"}`));
-
-              // 如果连接不健康超过2倍超时时间，主动关闭
-              if (timeSinceLastPong > CONNECTION_TIMEOUT_MS * 2) {
-                console.log(chalk.red("[WebSocket心跳] 连接超时，主动关闭连接"));
-                socket.close(1000, "Connection timeout due to missing pong responses");
+              // 检查连接是否存活
+              if (!socket.isAlive) {
+                console.log(chalk.red("[WebSocket无感心跳] 连接已死亡，主动关闭"));
+                socket.terminate();
                 clearInterval(heartbeatInterval);
+                return;
               }
+
+              // 重置存活状态，发送原生ping
+              socket.isAlive = false;
+              socket.ping(); // 🎯 关键：使用原生ping，客户端自动pong，不会进入onmessage
+              console.log(chalk.cyan(`[WebSocket无感心跳] 发送原生ping`));
 
             } catch (error) {
-              console.error(chalk.red("[WebSocket心跳] 发送heartbeat失败:"), error.message);
+              console.error(chalk.red("[WebSocket无感心跳] 发送ping失败:"), error.message);
               clearInterval(heartbeatInterval);
             }
           }, HEARTBEAT_INTERVAL_MS);
 
-          console.log(chalk.green(`[WebSocket心跳] 已启动，间隔${HEARTBEAT_INTERVAL_MS / 1000}秒，超时${CONNECTION_TIMEOUT_MS / 1000}秒`));
+          console.log(chalk.green(`[WebSocket无感心跳] 已启动，间隔${HEARTBEAT_INTERVAL_MS / 1000}秒`));
         };
 
         const stopHeartbeat = () => {
           if (heartbeatInterval) {
             clearInterval(heartbeatInterval);
             heartbeatInterval = null;
-            console.log(chalk.yellow("[WebSocket心跳] 已停止"));
+            console.log(chalk.yellow("[WebSocket无感心跳] 已停止"));
+          }
+          // 移除pong监听器
+          if (socket) {
+            socket.removeListener('pong', heartbeat);
           }
         };
 
-        // 处理客户端的pong响应
-        const handlePongResponse = (data) => {
-          lastPongReceived = Date.now();
-          if (!isConnectionHealthy) {
-            isConnectionHealthy = true;
-            console.log(chalk.green("[WebSocket心跳] 连接恢复健康状态"));
-          }
-        };
-
-        // 启动心跳
+        // 启动无感心跳
         startHeartbeat();
-
-        // 拦截socket的消息处理，添加pong响应处理
-        const originalMessageHandler = socket.onmessage;
-        socket.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-
-            // 处理pong响应
-            if (data.type === "pong" && data.client) {
-              handlePongResponse(data);
-              console.log(chalk.green(`[WebSocket心跳] 收到客户端pong响应 #${data.counter}`));
-              return; // pong消息不需要进一步处理
-            }
-          } catch (e) {
-            // 非JSON消息，继续原始处理流程
-          }
-
-          // 调用原始消息处理器
-          if (originalMessageHandler) {
-            originalMessageHandler.call(socket, event);
-          }
-        };
 
         aibitat.onError(async (error) => {
           let errorMessage =
