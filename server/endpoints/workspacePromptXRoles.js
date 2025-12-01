@@ -601,27 +601,34 @@ function workspacePromptXRolesEndpoints(app) {
           console.log(`[RoleSync] 发现 ${newRoles.length} 个新角色，创建默认配置:`,
             newRoles.map(r => r.id));
 
-          await prisma.workspace_promptx_roles.createMany({
-            data: newRoles.map(r => ({
-              workspaceId,
-              roleId: r.id,
-              enabled: false,  // 默认禁用，让用户手动启用
-              addedBy: null,   // 系统创建
-              updatedBy: null
-            })),
-            skipDuplicates: true
-          });
-
-          // 更新configMap以包含新创建的配置
+          // SQLite不支持createMany，改用循环create
           for (const role of newRoles) {
-            configMap.set(role.id, {
-              roleId: role.id,
-              enabled: false,
-              customName: null,
-              customDescription: null,
-              addedBy: null,
-              addedBy_user: null
-            });
+            try {
+              await prisma.workspace_promptx_roles.create({
+                data: {
+                  workspaceId,
+                  roleId: role.id,
+                  enabled: false,  // 默认禁用，让用户手动启用
+                  addedBy: null,   // 系统创建
+                  updatedBy: null
+                }
+              });
+
+              // 更新configMap以包含新创建的配置
+              configMap.set(role.id, {
+                roleId: role.id,
+                enabled: false,
+                customName: null,
+                customDescription: null,
+                addedBy: null,
+                addedBy_user: null
+              });
+            } catch (error) {
+              // 跳过重复的记录（相当于skipDuplicates）
+              if (!error.message.includes('Unique constraint')) {
+                throw error;
+              }
+            }
           }
 
           console.log(`[RoleSync] 已创建 ${newRoles.length} 个默认配置`);
@@ -870,26 +877,33 @@ function workspacePromptXRolesEndpoints(app) {
         const newRoles = mcpRoles.filter(r => !configMap.has(r.id));
 
         if (newRoles.length > 0) {
-          await prisma.workspace_promptx_roles.createMany({
-            data: newRoles.map(r => ({
-              workspaceId,
-              roleId: r.id,
-              enabled: false,
-              addedBy: null,
-              updatedBy: null
-            })),
-            skipDuplicates: true
-          });
-
+          // SQLite不支持createMany，改用循环create
           for (const role of newRoles) {
-            configMap.set(role.id, {
-              roleId: role.id,
-              enabled: false,
-              customName: null,
-              customDescription: null,
-              addedBy: null,
-              addedBy_user: null
-            });
+            try {
+              await prisma.workspace_promptx_roles.create({
+                data: {
+                  workspaceId,
+                  roleId: role.id,
+                  enabled: false,
+                  addedBy: null,
+                  updatedBy: null
+                }
+              });
+
+              configMap.set(role.id, {
+                roleId: role.id,
+                enabled: false,
+                customName: null,
+                customDescription: null,
+                addedBy: null,
+                addedBy_user: null
+              });
+            } catch (error) {
+              // 跳过重复的记录（相当于skipDuplicates）
+              if (!error.message.includes('Unique constraint')) {
+                throw error;
+              }
+            }
           }
           console.log(`[RoleSync] 已创建 ${newRoles.length} 个默认配置`);
         }

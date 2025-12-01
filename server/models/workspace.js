@@ -224,16 +224,27 @@ const Workspace = {
           try {
             // 直接为新角色创建默认配置（不使用缓存的ensureWorkspaceRoleConfigs函数）
             const mcpRoleIds = availableRoles.map(r => r.id);
-            await prisma.workspace_promptx_roles.createMany({
-              data: mcpRoleIds.map(roleId => ({
-                workspaceId: workspace.id,
-                roleId: roleId,
-                enabled: false,  // 默认禁用，让用户手动启用
-                addedBy: null,   // 系统创建
-                updatedBy: null
-              })),
-              skipDuplicates: true
-            });
+
+            // SQLite不支持createMany，改用循环create
+            for (const roleId of mcpRoleIds) {
+              try {
+                await prisma.workspace_promptx_roles.create({
+                  data: {
+                    workspaceId: workspace.id,
+                    roleId: roleId,
+                    enabled: false,  // 默认禁用，让用户手动启用
+                    addedBy: null,   // 系统创建
+                    updatedBy: null
+                  }
+                });
+              } catch (error) {
+                // 跳过重复的记录（相当于skipDuplicates）
+                if (!error.message.includes('Unique constraint')) {
+                  throw error;
+                }
+              }
+            }
+
             console.log(`[Workspace] PromptX角色库初始化成功，共 ${availableRoles.length} 个角色 (工作区ID: ${workspace.id})`);
           } finally {
             await prisma.$disconnect();
