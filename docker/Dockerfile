@@ -143,6 +143,13 @@ WORKDIR /app
 # Install server layer
 # Also pull and build collector deps (chromium issues prevent bad bindings)
 FROM build AS backend-build
+
+# ✅ 设置编译参数，确保兼容老旧CPU（如 Intel Xeon E5-2650 v2）
+# 只使用基础 x86-64 指令集，避免 AVX2/AVX-512 导致的 "Illegal instruction" 错误
+ENV CFLAGS="-march=x86-64 -mtune=generic"
+ENV CXXFLAGS="-march=x86-64 -mtune=generic"
+ENV npm_config_build_from_source=true
+
 COPY --chown=anythingllm:anythingllm ./server /app/server/
 WORKDIR /app/server
 RUN yarn install --production --network-timeout 100000 && yarn cache clean
@@ -157,6 +164,9 @@ WORKDIR /app
 COPY --chown=anythingllm:anythingllm ./collector/ ./collector/
 WORKDIR /app/collector
 ENV PUPPETEER_DOWNLOAD_BASE_URL=https://storage.googleapis.com/chrome-for-testing-public
+# ✅ 确保 collector 的 native addon 也使用兼容的指令集
+ENV CFLAGS="-march=x86-64 -mtune=generic"
+ENV CXXFLAGS="-march=x86-64 -mtune=generic"
 RUN yarn install --production --network-timeout 100000 && yarn cache clean
 
 WORKDIR /app
