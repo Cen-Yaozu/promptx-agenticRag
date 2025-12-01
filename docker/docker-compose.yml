@@ -16,7 +16,7 @@ services:
       - "../collector/hotdir/:/app/collector/hotdir"
       - "../collector/outputs/:/app/collector/outputs"
       - "./mcp_servers.json:/app/server/storage/plugins/anythingllm_mcp_servers.json"
-      # ✅ 新增：挂载.promptx目录到主应用容器
+      # ✅ PromptX数据持久化 - 整个.promptx目录
       - "./.promptx:/root/.promptx"
     user: "${UID:-1000}:${GID:-1000}"
     ports:
