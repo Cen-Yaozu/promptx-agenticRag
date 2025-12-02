@@ -10,3 +10,10 @@ aws_cf_deploy_anything_llm.json
 yarn.lock
 *.bak
 .idea
+
+# 本地配置和运行时数据
+.claude/
+.promptx/
+frontend/.env.development
+qdrant-data/
+storage/

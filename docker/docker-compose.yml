@@ -22,17 +22,20 @@ services:
     networks:
       - anything-llm
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    # healthcheck暂时移除，因为Qdrant镜像中没有curl/wget
+    # Qdrant服务启动后会自动监听6333端口，可通过日志确认
 
   anything-llm:
     container_name: anythingllm
     platform: linux/amd64
-    image: azu12138/promptx-agenticrag:latest
+    # 使用本地构建而不是远程镜像，以包含最新的代码修复
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        ARG_UID: ${UID:-1000}
+        ARG_GID: ${GID:-1000}
+    # image: azu12138/promptx-agenticrag:latest
     cap_add:
       - SYS_ADMIN
     volumes:
@@ -54,8 +57,7 @@ services:
       - "host.docker.internal:host-gateway"
     # ✅ 依赖Qdrant服务先启动
     depends_on:
-      qdrant:
-        condition: service_healthy
+      - qdrant
     restart: unless-stopped
 
   # ❌ 删除：不再需要独立的PromptX容器
