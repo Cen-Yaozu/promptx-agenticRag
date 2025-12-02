@@ -1,4 +1,17 @@
-const { ChromaClient } = require("chromadb");
+// 🛡️ 防御性编程: chromadb包已移除,使用时动态检查
+let ChromaClient;
+try {
+  ChromaClient = require("chromadb").ChromaClient;
+} catch (error) {
+  console.warn(
+    "⚠️  ChromaDB package not installed. Chroma vector database will not be available."
+  );
+  console.warn(
+    "💡 To use ChromaDB, install it with: npm install chromadb"
+  );
+  ChromaClient = null;
+}
+
 const { TextSplitter } = require("../../TextSplitter");
 const { SystemSettings } = require("../../../models/systemSettings");
 const { storeVectorResult, cachedVectorInformation } = require("../../files");
@@ -56,6 +69,13 @@ const Chroma = {
     return normalized;
   },
   connect: async function () {
+    // 🛡️ 检查chromadb包是否可用
+    if (!ChromaClient) {
+      throw new Error(
+        "Chroma::ChromaDB package not installed. Please install 'chromadb' package to use this vector database, or switch to another vector database (e.g., LanceDB, Qdrant)."
+      );
+    }
+
     if (process.env.VECTOR_DB !== "chroma")
       throw new Error("Chroma::Invalid ENV settings");
 

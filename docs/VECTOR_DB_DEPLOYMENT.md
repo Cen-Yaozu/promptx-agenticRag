@@ -1,0 +1,301 @@
+# 向量数据库独立部署指南
+
+## 🎯 为什么需要独立部署?
+
+当前问题: DeeChat在Intel Xeon E5-2650 v2服务器上因为原生依赖(chromadb-default-embed)导致崩溃。
+
+**解决方案**: 将向量数据库独立部署,通过HTTP API连接,避免原生二进制依赖。
+
+---
+
+## 📦 方案对比
+
+| 方案 | 优点 | 缺点 | 推荐度 |
+|------|------|------|--------|
+| **Qdrant** | 性能强、功能全、Web UI | 需额外服务 | ⭐⭐⭐ |
+| **ChromaDB** | 简单、轻量 | 功能较少 | ⭐⭐ |
+| **继续LanceDB** | 嵌入式、简单 | 原生依赖问题 | ⭐ |
+
+---
+
+## 🚀 方案A: Qdrant部署 (推荐)
+
+### 1. 启动Qdrant服务
+
+```bash
+cd /path/to/promptx-agenticRag
+
+# 启动Qdrant
+docker-compose -f docker-compose.qdrant.yml up -d
+
+# 查看日志
+docker logs -f deechat-qdrant
+
+# 验证服务
+curl http://localhost:6333/
+```
+
+### 2. 访问Web管理界面
+
+浏览器打开: `http://你的服务器IP:6333/dashboard`
+
+### 3. 修改DeeChat配置
+
+编辑 `docker/.env`:
+
+```bash
+# 向量数据库配置
+VECTOR_DB='qdrant'
+QDRANT_ENDPOINT='http://qdrant:6333'  # Docker内部网络
+# QDRANT_API_KEY='your-key'  # 可选,取消注释启用认证
+```
+
+### 4. 重启DeeChat
+
+```bash
+# 重新构建(如果需要)
+docker-compose build
+
+# 重启服务
+docker-compose up -d
+```
+
+### 5. 测试验证
+
+上传文件到工作区,检查是否正常:
+- 上传成功 ✅
+- 保存到工作区 ✅
+- 不再崩溃 ✅
+
+---
+
+## 📦 方案B: ChromaDB部署
+
+### 1. 启动ChromaDB服务
+
+```bash
+# 启动ChromaDB
+docker-compose -f docker-compose.chromadb.yml up -d
+
+# 验证服务
+curl http://localhost:8000/api/v1/heartbeat
+```
+
+### 2. 修改DeeChat配置
+
+编辑 `docker/.env`:
+
+```bash
+VECTOR_DB='chroma'
+CHROMA_ENDPOINT='http://chromadb:8000'
+# CHROMA_API_HEADER='X-Chroma-Token'  # 可选
+# CHROMA_API_KEY='your-token'  # 可选
+```
+
+### 3. 重启DeeChat
+
+```bash
+docker-compose up -d
+```
+
+---
+
+## 🔧 高级配置
+
+### 启用Qdrant认证
+
+编辑 `docker-compose.qdrant.yml`:
+
+```yaml
+environment:
+  - QDRANT__SERVICE__API_KEY=your-super-secret-key-123456
+```
+
+对应修改 `docker/.env`:
+
+```bash
+QDRANT_API_KEY='your-super-secret-key-123456'
+```
+
+### 数据持久化
+
+两个方案都已配置持久化:
+- Qdrant: `./qdrant-data/`
+- ChromaDB: `./chromadb-data/`
+
+**备份**:
+
+```bash
+# 停止服务
+docker-compose -f docker-compose.qdrant.yml stop
+
+# 备份数据
+tar -czf qdrant-backup-$(date +%Y%m%d).tar.gz ./qdrant-data
+
+# 恢复数据
+tar -xzf qdrant-backup-20250102.tar.gz
+
+# 重启服务
+docker-compose -f docker-compose.qdrant.yml up -d
+```
+
+---
+
+## 🛡️ 生产环境建议
+
+### 1. 启用认证保护
+
+```yaml
+# docker-compose.qdrant.yml
+environment:
+  - QDRANT__SERVICE__API_KEY=${QDRANT_SECRET_KEY}
+```
+
+### 2. 限制端口访问
+
+```yaml
+ports:
+  - "127.0.0.1:6333:6333"  # 仅本地访问
+```
+
+如果DeeChat和Qdrant在同一台服务器,不需要暴露端口:
+
+```yaml
+# 删除ports配置,仅通过Docker内部网络访问
+# ports:
+#   - "6333:6333"
+```
+
+### 3. 资源限制
+
+```yaml
+deploy:
+  resources:
+    limits:
+      cpus: '2.0'
+      memory: 2G
+    reservations:
+      memory: 512M
+```
+
+---
+
+## 📊 性能监控
+
+### Qdrant
+
+访问 `http://localhost:6333/dashboard` 查看:
+- 集合数量
+- 向量总数
+- 内存使用
+- 查询性能
+
+### ChromaDB
+
+```bash
+# 查看健康状态
+curl http://localhost:8000/api/v1/heartbeat
+
+# 查看集合
+curl http://localhost:8000/api/v1/collections
+```
+
+---
+
+## 🔄 数据迁移
+
+如果从LanceDB迁移到Qdrant:
+
+### 方式1: 重新向量化(推荐)
+
+1. 切换配置到Qdrant
+2. 在DeeChat中删除所有文档
+3. 重新上传文档
+4. 系统自动使用Qdrant存储
+
+### 方式2: 编程迁移(高级)
+
+需要编写迁移脚本,从LanceDB读取向量并写入Qdrant。
+
+---
+
+## ❓ 常见问题
+
+### Q1: Qdrant vs ChromaDB 如何选择?
+
+- **选Qdrant**: 生产环境,需要高性能和Web UI
+- **选ChromaDB**: 快速测试,简单场景
+
+### Q2: 会丢失数据吗?
+
+不会。使用volume持久化存储:
+- Qdrant: `./qdrant-data/`
+- ChromaDB: `./chromadb-data/`
+
+### Q3: 需要修改代码吗?
+
+**不需要**! 你的代码已完整支持:
+- `server/utils/vectorDbProviders/qdrant/index.js` (第1行)
+- `server/utils/vectorDbProviders/chroma/index.js` (第1行)
+
+只需修改环境变量即可。
+
+### Q4: 性能会下降吗?
+
+不会。HTTP API的网络开销极小(<1ms),而且:
+- 避免了原生依赖
+- 可以独立扩展
+- Qdrant性能更优于LanceDB
+
+### Q5: 如何回滚到LanceDB?
+
+```bash
+# 修改docker/.env
+VECTOR_DB='lancedb'
+
+# 重启
+docker-compose up -d
+```
+
+---
+
+## 📝 完整部署检查清单
+
+- [ ] 创建 `docker-compose.qdrant.yml`
+- [ ] 启动Qdrant服务
+- [ ] 验证Qdrant健康状态
+- [ ] 修改 `docker/.env` 配置
+- [ ] 重启DeeChat服务
+- [ ] 上传测试文件
+- [ ] 验证向量化成功
+- [ ] 配置数据备份
+- [ ] (可选)启用API认证
+- [ ] (可选)配置资源限制
+
+---
+
+## 🎉 预期结果
+
+部署成功后:
+
+1. ✅ **不再崩溃**: 无原生依赖问题
+2. ✅ **性能更好**: Qdrant比LanceDB更快
+3. ✅ **易于维护**: Web UI可视化管理
+4. ✅ **生产就绪**: 认证、备份、监控齐全
+5. ✅ **可独立扩展**: 向量数据库可迁移到更强服务器
+
+---
+
+## 📞 下一步
+
+选择一个方案立即开始:
+
+```bash
+# 推荐: Qdrant
+docker-compose -f docker-compose.qdrant.yml up -d
+
+# 或者: ChromaDB
+docker-compose -f docker-compose.chromadb.yml up -d
+```
+
+然后修改 `docker/.env` 并重启DeeChat!

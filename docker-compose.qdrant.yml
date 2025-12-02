@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: deechat-qdrant
+    ports:
+      - "6333:6333"  # HTTP API
+      - "6334:6334"  # gRPC (可选)
+    volumes:
+      - ./qdrant-data:/qdrant/storage
+    environment:
+      # 可选: 设置API密钥保护
+      # - QDRANT__SERVICE__API_KEY=your-secret-key-here
+      - QDRANT__LOG_LEVEL=INFO
+    restart: unless-stopped
+    networks:
+      - deechat-network
+
+networks:
+  deechat-network:
+    driver: bridge

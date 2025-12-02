@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: deechat-chromadb
+    ports:
+      - "8000:8000"  # ChromaDB HTTP API
+    volumes:
+      - ./chromadb-data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ALLOW_RESET=true  # 生产环境改为false
+      # 可选: 开启认证
+      # - CHROMA_SERVER_AUTH_CREDENTIALS_PROVIDER=chromadb.auth.token.TokenAuthCredentialsProvider
+      # - CHROMA_SERVER_AUTH_CREDENTIALS=your-secret-token
+      # - CHROMA_SERVER_AUTH_PROVIDER=chromadb.auth.token.TokenAuthServerProvider
+    restart: unless-stopped
+    networks:
+      - deechat-network
+
+networks:
+  deechat-network:
+    driver: bridge
