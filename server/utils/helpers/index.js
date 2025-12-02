@@ -82,9 +82,15 @@
  * @returns { BaseVectorDatabaseProvider}
  */
 function getVectorDbClass(getExactly = null) {
-  const { LanceDb } = require("../vectorDbProviders/lance");
-  const vectorSelection = getExactly ?? process.env.VECTOR_DB ?? "lancedb";
+  // 🛡️ 防御性编程: 默认使用Qdrant而非LanceDB
+  // 原因: LanceDB(@lancedb/lancedb)和ChromaDB都有原生依赖,在老CPU上会崩溃
+  // Qdrant通过HTTP API连接,无原生依赖,性能更好且生产级
+  const vectorSelection = getExactly ?? process.env.VECTOR_DB ?? "qdrant";
+
   switch (vectorSelection) {
+    case "qdrant":
+      const { QDrant } = require("../vectorDbProviders/qdrant");
+      return QDrant;
     case "pinecone":
       const { Pinecone } = require("../vectorDbProviders/pinecone");
       return Pinecone;
@@ -95,13 +101,12 @@ function getVectorDbClass(getExactly = null) {
       const { ChromaCloud } = require("../vectorDbProviders/chromacloud");
       return ChromaCloud;
     case "lancedb":
+      // ⚠️  LanceDB有原生依赖,可能在老CPU上无法运行
+      const { LanceDb } = require("../vectorDbProviders/lance");
       return LanceDb;
     case "weaviate":
       const { Weaviate } = require("../vectorDbProviders/weaviate");
       return Weaviate;
-    case "qdrant":
-      const { QDrant } = require("../vectorDbProviders/qdrant");
-      return QDrant;
     case "milvus":
       const { Milvus } = require("../vectorDbProviders/milvus");
       return Milvus;
@@ -115,10 +120,14 @@ function getVectorDbClass(getExactly = null) {
       const { PGVector } = require("../vectorDbProviders/pgvector");
       return PGVector;
     default:
-      console.error(
-        `\x1b[31m[ENV ERROR]\x1b[0m No VECTOR_DB value found in environment! Falling back to LanceDB`
+      console.warn(
+        `\x1b[33m[ENV WARNING]\x1b[0m No VECTOR_DB value found in environment! Falling back to Qdrant.`
       );
-      return LanceDb;
+      console.warn(
+        `\x1b[33m[ENV WARNING]\x1b[0m Please set VECTOR_DB environment variable or ensure Qdrant service is running.`
+      );
+      const { QDrant: DefaultQDrant } = require("../vectorDbProviders/qdrant");
+      return DefaultQDrant;
   }
 }
 
