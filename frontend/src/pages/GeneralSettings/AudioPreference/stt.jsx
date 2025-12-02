@@ -70,9 +70,10 @@ export default function SpeechToTextProvider({ settings }) {
     setFilteredProviders(filtered);
   }, [searchQuery, selectedProvider]);
 
+  // 🛡️ 防御性编程: 如果找不到匹配的provider,使用默认的第一个
   const selectedProviderObject = PROVIDERS.find(
     (provider) => provider.value === selectedProvider
-  );
+  ) || PROVIDERS[0];
 
   return (
     <form onSubmit={handleSubmit} className="flex w-full">

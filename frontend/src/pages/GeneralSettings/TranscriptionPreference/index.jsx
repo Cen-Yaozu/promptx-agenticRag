@@ -94,9 +94,10 @@ export default function TranscriptionModelPreference() {
     setFilteredProviders(filtered);
   }, [searchQuery, selectedProvider]);
 
+  // 🛡️ 防御性编程: 如果找不到匹配的provider,使用默认的第一个
   const selectedProviderObject = PROVIDERS.find(
     (provider) => provider.value === selectedProvider
-  );
+  ) || PROVIDERS[0];
 
   return (
     <div className="w-screen h-screen overflow-hidden bg-theme-bg-container flex">

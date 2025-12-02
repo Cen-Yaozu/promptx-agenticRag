@@ -429,9 +429,10 @@ export default function GeneralLLMPreference() {
     setFilteredLLMs(filtered);
   }, [searchQuery, selectedLLM]);
 
+  // 🛡️ 防御性编程: 如果找不到匹配的LLM,使用默认的第一个
   const selectedLLMObject = AVAILABLE_LLM_PROVIDERS.find(
     (llm) => llm.value === selectedLLM
-  );
+  ) || AVAILABLE_LLM_PROVIDERS[0];
 
   const handleUnifiedConfigSaveComplete = (result) => {
     if (result.success) {

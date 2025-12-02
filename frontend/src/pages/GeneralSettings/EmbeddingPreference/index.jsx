@@ -224,9 +224,10 @@ export default function GeneralEmbeddingPreference() {
     setFilteredEmbedders(filtered);
   }, [searchQuery, selectedEmbedder]);
 
+  // 🛡️ 防御性编程: 如果找不到匹配的embedder,使用默认的native embedder
   const selectedEmbedderObject = EMBEDDERS.find(
     (embedder) => embedder.value === selectedEmbedder
-  );
+  ) || EMBEDDERS[0]; // 默认使用第一个 (AnythingLLM Embedder)
 
   return (
     <div className="w-screen h-screen overflow-hidden bg-theme-bg-container flex">
