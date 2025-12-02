@@ -77,58 +77,18 @@
  */
 
 /**
- * Gets the systems current vector database provider.
- * @param {('pinecone' | 'chroma' | 'chromacloud' | 'lancedb' | 'weaviate' | 'qdrant' | 'milvus' | 'zilliz' | 'astra') | null} getExactly - If provided, this will return an explit provider.
+ * Gets the systems current vector database provider (Qdrant only).
+ * @param {('qdrant') | null} getExactly - If provided, this will return an explicit provider.
  * @returns { BaseVectorDatabaseProvider}
  */
 function getVectorDbClass(getExactly = null) {
-  // 🛡️ 防御性编程: 默认使用Qdrant而非LanceDB
-  // 原因: LanceDB(@lancedb/lancedb)和ChromaDB都有原生依赖,在老CPU上会崩溃
-  // Qdrant通过HTTP API连接,无原生依赖,性能更好且生产级
-  const vectorSelection = getExactly ?? process.env.VECTOR_DB ?? "qdrant";
-
-  switch (vectorSelection) {
-    case "qdrant":
-      const { QDrant } = require("../vectorDbProviders/qdrant");
-      return QDrant;
-    case "pinecone":
-      const { Pinecone } = require("../vectorDbProviders/pinecone");
-      return Pinecone;
-    case "chroma":
-      const { Chroma } = require("../vectorDbProviders/chroma");
-      return Chroma;
-    case "chromacloud":
-      const { ChromaCloud } = require("../vectorDbProviders/chromacloud");
-      return ChromaCloud;
-    case "lancedb":
-      // ⚠️  LanceDB有原生依赖,可能在老CPU上无法运行
-      const { LanceDb } = require("../vectorDbProviders/lance");
-      return LanceDb;
-    case "weaviate":
-      const { Weaviate } = require("../vectorDbProviders/weaviate");
-      return Weaviate;
-    case "milvus":
-      const { Milvus } = require("../vectorDbProviders/milvus");
-      return Milvus;
-    case "zilliz":
-      const { Zilliz } = require("../vectorDbProviders/zilliz");
-      return Zilliz;
-    case "astra":
-      const { AstraDB } = require("../vectorDbProviders/astra");
-      return AstraDB;
-    case "pgvector":
-      const { PGVector } = require("../vectorDbProviders/pgvector");
-      return PGVector;
-    default:
-      console.warn(
-        `\x1b[33m[ENV WARNING]\x1b[0m No VECTOR_DB value found in environment! Falling back to Qdrant.`
-      );
-      console.warn(
-        `\x1b[33m[ENV WARNING]\x1b[0m Please set VECTOR_DB environment variable or ensure Qdrant service is running.`
-      );
-      const { QDrant: DefaultQDrant } = require("../vectorDbProviders/qdrant");
-      return DefaultQDrant;
-  }
+  // 🛡️ 固定使用Qdrant向量数据库
+  // 原因:
+  // 1. Qdrant通过HTTP API连接,无原生依赖,兼容所有CPU架构
+  // 2. LanceDB/ChromaDB等有原生依赖,在老CPU(如E5-2650 v2)上会因AVX2指令集不支持而崩溃
+  // 3. 简化架构,减少维护成本,一个稳定的向量数据库足够满足需求
+  const { QDrant } = require("../vectorDbProviders/qdrant");
+  return QDrant;
 }
 
 /**

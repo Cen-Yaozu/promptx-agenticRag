@@ -7,7 +7,6 @@ const { isValidUrl, safeJsonParse } = require("../utils/http");
 const prisma = require("../utils/prisma");
 const { v4 } = require("uuid");
 const { MetaGenerator } = require("../utils/boot/MetaGenerator");
-const { PGVector } = require("../utils/vectorDbProviders/pgvector");
 const { NativeEmbedder } = require("../utils/EmbeddingEngines/native");
 const { getBaseLLMProviderModel } = require("../utils/helpers");
 
@@ -423,44 +422,9 @@ const SystemSettings = {
 
   vectorDBPreferenceKeys: function () {
     return {
-      // Pinecone DB Keys
-      PineConeKey: !!process.env.PINECONE_API_KEY,
-      PineConeIndex: process.env.PINECONE_INDEX,
-
-      // Chroma DB Keys
-      ChromaEndpoint: process.env.CHROMA_ENDPOINT,
-      ChromaApiHeader: process.env.CHROMA_API_HEADER,
-      ChromaApiKey: !!process.env.CHROMA_API_KEY,
-
-      // ChromaCloud DB Keys
-      ChromaCloudApiKey: !!process.env.CHROMACLOUD_API_KEY,
-      ChromaCloudTenant: process.env.CHROMACLOUD_TENANT,
-      ChromaCloudDatabase: process.env.CHROMACLOUD_DATABASE,
-
-      // Weaviate DB Keys
-      WeaviateEndpoint: process.env.WEAVIATE_ENDPOINT,
-      WeaviateApiKey: process.env.WEAVIATE_API_KEY,
-
-      // QDrant DB Keys
+      // Qdrant DB Keys (唯一支持的向量数据库)
       QdrantEndpoint: process.env.QDRANT_ENDPOINT,
       QdrantApiKey: process.env.QDRANT_API_KEY,
-
-      // Milvus DB Keys
-      MilvusAddress: process.env.MILVUS_ADDRESS,
-      MilvusUsername: process.env.MILVUS_USERNAME,
-      MilvusPassword: !!process.env.MILVUS_PASSWORD,
-
-      // Zilliz DB Keys
-      ZillizEndpoint: process.env.ZILLIZ_ENDPOINT,
-      ZillizApiToken: process.env.ZILLIZ_API_TOKEN,
-
-      // AstraDB Keys
-      AstraDBApplicationToken: process?.env?.ASTRA_DB_APPLICATION_TOKEN,
-      AstraDBEndpoint: process?.env?.ASTRA_DB_ENDPOINT,
-
-      // PGVector Keys
-      PGVectorConnectionString: !!PGVector.connectionString() || false,
-      PGVectorTableName: PGVector.tableName(),
     };
   },
 

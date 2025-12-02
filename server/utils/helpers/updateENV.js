@@ -331,45 +331,7 @@ const KEY_MAPPING = {
     postUpdate: [handleVectorStoreReset],
   },
 
-  // Chroma Options
-  ChromaEndpoint: {
-    envKey: "CHROMA_ENDPOINT",
-    checks: [isValidURL, validChromaURL, validDockerizedUrl],
-  },
-  ChromaApiHeader: {
-    envKey: "CHROMA_API_HEADER",
-    checks: [],
-  },
-  ChromaApiKey: {
-    envKey: "CHROMA_API_KEY",
-    checks: [],
-  },
-
-  // ChromaCloud Options
-  ChromaCloudApiKey: {
-    envKey: "CHROMACLOUD_API_KEY",
-    checks: [isNotEmpty],
-  },
-  ChromaCloudTenant: {
-    envKey: "CHROMACLOUD_TENANT",
-    checks: [isNotEmpty],
-  },
-  ChromaCloudDatabase: {
-    envKey: "CHROMACLOUD_DATABASE",
-    checks: [isNotEmpty],
-  },
-
-  // Weaviate Options
-  WeaviateEndpoint: {
-    envKey: "WEAVIATE_ENDPOINT",
-    checks: [isValidURL, validDockerizedUrl],
-  },
-  WeaviateApiKey: {
-    envKey: "WEAVIATE_API_KEY",
-    checks: [],
-  },
-
-  // QDrant Options
+  // Qdrant Options (唯一支持的向量数据库)
   QdrantEndpoint: {
     envKey: "QDRANT_ENDPOINT",
     checks: [isValidURL, validDockerizedUrl],
@@ -377,65 +339,6 @@ const KEY_MAPPING = {
   QdrantApiKey: {
     envKey: "QDRANT_API_KEY",
     checks: [],
-  },
-  PineConeKey: {
-    envKey: "PINECONE_API_KEY",
-    checks: [],
-  },
-  PineConeIndex: {
-    envKey: "PINECONE_INDEX",
-    checks: [],
-  },
-
-  // Milvus Options
-  MilvusAddress: {
-    envKey: "MILVUS_ADDRESS",
-    checks: [isValidURL, validDockerizedUrl],
-  },
-  MilvusUsername: {
-    envKey: "MILVUS_USERNAME",
-    checks: [isNotEmpty],
-  },
-  MilvusPassword: {
-    envKey: "MILVUS_PASSWORD",
-    checks: [isNotEmpty],
-  },
-
-  // Zilliz Cloud Options
-  ZillizEndpoint: {
-    envKey: "ZILLIZ_ENDPOINT",
-    checks: [isValidURL],
-  },
-  ZillizApiToken: {
-    envKey: "ZILLIZ_API_TOKEN",
-    checks: [isNotEmpty],
-  },
-
-  // Astra DB Options
-  AstraDBApplicationToken: {
-    envKey: "ASTRA_DB_APPLICATION_TOKEN",
-    checks: [isNotEmpty],
-  },
-  AstraDBEndpoint: {
-    envKey: "ASTRA_DB_ENDPOINT",
-    checks: [isNotEmpty],
-  },
-
-  /*
-  PGVector Options
-  - Does very simple validations - we should expand this in the future
-  - to ensure the connection string is valid and the table name is valid
-  - via direct query
-  */
-  PGVectorConnectionString: {
-    envKey: "PGVECTOR_CONNECTION_STRING",
-    checks: [isNotEmpty, looksLikePostgresConnectionString],
-    preUpdate: [validatePGVectorConnectionString],
-  },
-  PGVectorTableName: {
-    envKey: "PGVECTOR_TABLE_NAME",
-    checks: [isNotEmpty],
-    preUpdate: [validatePGVectorTableName],
   },
 
   // Together Ai Options

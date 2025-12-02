@@ -26,26 +26,16 @@ async function resetAllVectorStores({ vectorDbKey }) {
     });
 
     console.log(
-      "Resetting anythingllm managed vector namespaces for",
-      vectorDbKey
+      "Resetting anythingllm managed vector namespaces for Qdrant"
     );
-    const VectorDb = getVectorDbClass(vectorDbKey);
+    const VectorDb = getVectorDbClass(); // 始终返回Qdrant
 
-    if (vectorDbKey === "pgvector") {
-      /*
-      pgvector has a reset method that drops the entire embedding table
-      which is required since if this function is called we will need to
-      reset the embedding column VECTOR dimension value and you cannot change
-      the dimension value of an existing vector column.
-      */
-      await VectorDb.reset();
-    } else {
-      for (const workspace of workspaces) {
-        try {
-          await VectorDb["delete-namespace"]({ namespace: workspace.slug });
-        } catch (e) {
-          console.error(e.message);
-        }
+    // 删除所有workspace的向量命名空间
+    for (const workspace of workspaces) {
+      try {
+        await VectorDb["delete-namespace"]({ namespace: workspace.slug });
+      } catch (e) {
+        console.error(e.message);
       }
     }
 

@@ -5,6 +5,30 @@ networks:
     driver: bridge
 
 services:
+  # 🎯 Qdrant向量数据库服务
+  # 无原生依赖,通过HTTP API连接,兼容所有CPU架构
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    ports:
+      - "6333:6333"  # HTTP API
+      - "6334:6334"  # gRPC (可选)
+    volumes:
+      - "../qdrant-data:/qdrant/storage"  # 数据持久化
+    environment:
+      - QDRANT__LOG_LEVEL=INFO
+      # 可选: 启用API密钥保护
+      # - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY}
+    networks:
+      - anything-llm
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   anything-llm:
     container_name: anythingllm
     platform: linux/amd64
@@ -28,9 +52,10 @@ services:
       - anything-llm
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    # ❌ 删除：不再依赖独立的promptx容器
-    # depends_on:
-    #   - promptx
+    # ✅ 依赖Qdrant服务先启动
+    depends_on:
+      qdrant:
+        condition: service_healthy
     restart: unless-stopped
 
   # ❌ 删除：不再需要独立的PromptX容器
