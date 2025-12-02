@@ -289,7 +289,8 @@ function getLLMProvider({ provider = null, model = null } = {}) {
  * @returns {BaseEmbedderProvider}
  */
 function getEmbeddingEngineSelection() {
-  const { NativeEmbedder } = require("../EmbeddingEngines/native");
+  // ✅ 修复: 延迟加载NativeEmbedder,只在实际需要时才require
+  // 避免在使用其他embedding引擎时也加载native模块导致CPU指令集不兼容
   const engineSelection = process.env.EMBEDDING_ENGINE;
   switch (engineSelection) {
     case "openai":
@@ -307,6 +308,7 @@ function getEmbeddingEngineSelection() {
       const { OllamaEmbedder } = require("../EmbeddingEngines/ollama");
       return new OllamaEmbedder();
     case "native":
+      const { NativeEmbedder } = require("../EmbeddingEngines/native");
       return new NativeEmbedder();
     case "lmstudio":
       const { LMStudioEmbedder } = require("../EmbeddingEngines/lmstudio");
@@ -332,7 +334,8 @@ function getEmbeddingEngineSelection() {
       const { GeminiEmbedder } = require("../EmbeddingEngines/gemini");
       return new GeminiEmbedder();
     default:
-      return new NativeEmbedder();
+      const { NativeEmbedder: DefaultNative } = require("../EmbeddingEngines/native");
+      return new DefaultNative();
   }
 }
 
