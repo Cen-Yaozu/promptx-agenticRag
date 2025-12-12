@@ -970,17 +970,29 @@ function systemEndpoints(app) {
     async (request, response) => {
       try {
         const { provider, apiKey = null, basePath = null } = reqBody(request);
+        console.log('[System API] 接收到的参数:', {
+          provider,
+          apiKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'null',
+          basePath: basePath || 'null'
+        });
+        
         const { models, error } = await getCustomModels(
           provider,
           apiKey,
           basePath
         );
+        
+        console.log('[System API] 返回结果:', {
+          modelsCount: models?.length || 0,
+          error: error || 'null'
+        });
+        
         return response.status(200).json({
           models,
           error,
         });
       } catch (error) {
-        console.error(error);
+        console.error('[System API] 异常:', error);
         response.status(500).end();
       }
     }

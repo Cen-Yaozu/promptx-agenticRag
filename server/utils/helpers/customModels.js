@@ -49,69 +49,74 @@ async function getCustomModels(provider = "", apiKey = null, basePath = null) {
   if (!SUPPORT_CUSTOM_MODELS.includes(provider))
     return { models: [], error: "Invalid provider for custom models" };
 
-  switch (provider) {
-    case "openai":
-      return await openAiModels(apiKey);
-    case "anthropic":
-      return await anthropicModels(apiKey);
-    case "localai":
-      return await localAIModels(basePath, apiKey);
-    case "ollama":
-      return await ollamaAIModels(basePath, apiKey);
-    case "togetherai":
-      return await getTogetherAiModels(apiKey);
-    case "fireworksai":
-      return await getFireworksAiModels(apiKey);
-    case "mistral":
-      return await getMistralModels(apiKey);
-    case "perplexity":
-      return await getPerplexityModels();
-    case "openrouter":
-      return await getOpenRouterModels();
-    case "lmstudio":
-      return await getLMStudioModels(basePath);
-    case "koboldcpp":
-      return await getKoboldCPPModels(basePath);
-    case "litellm":
-      return await liteLLMModels(basePath, apiKey);
-    case "elevenlabs-tts":
-      return await getElevenLabsModels(apiKey);
-    case "groq":
-      return await getGroqAiModels(apiKey);
-    case "deepseek":
-      return await getDeepSeekModels(apiKey);
-    case "apipie":
-      return await getAPIPieModels(apiKey);
-    case "novita":
-      return await getNovitaModels();
-    case "cometapi":
-      return await getCometApiModels();
-    case "xai":
-      return await getXAIModels(apiKey);
-    case "nvidia-nim":
-      return await getNvidiaNimModels(basePath);
-    case "gemini":
-      return await getGeminiModels(apiKey);
-    case "ppio":
-      return await getPPIOModels(apiKey);
-    case "dpais":
-      return await getDellProAiStudioModels(basePath);
-    case "moonshotai":
-      return await getMoonshotAiModels(apiKey);
-    case "foundry":
-      return await getFoundryModels(basePath);
-    case "cohere":
-      return await getCohereModels(apiKey, "chat");
-    case "zai":
-      return await getZAiModels(apiKey);
-    case "generic-openai":
-      return await genericOpenAiModels(basePath, apiKey);
-    case "native-embedder":
-      return await getNativeEmbedderModels();
-    case "cohere-embedder":
-      return await getCohereModels(apiKey, "embed");
-    default:
-      return { models: [], error: "Invalid provider for custom models" };
+  try {
+    switch (provider) {
+      case "openai":
+        return await openAiModels(apiKey);
+      case "anthropic":
+        return await anthropicModels(apiKey);
+      case "localai":
+        return await localAIModels(basePath, apiKey);
+      case "ollama":
+        return await ollamaAIModels(basePath, apiKey);
+      case "togetherai":
+        return await getTogetherAiModels(apiKey);
+      case "fireworksai":
+        return await getFireworksAiModels(apiKey);
+      case "mistral":
+        return await getMistralModels(apiKey);
+      case "perplexity":
+        return await getPerplexityModels();
+      case "openrouter":
+        return await getOpenRouterModels();
+      case "lmstudio":
+        return await getLMStudioModels(basePath);
+      case "koboldcpp":
+        return await getKoboldCPPModels(basePath);
+      case "litellm":
+        return await liteLLMModels(basePath, apiKey);
+      case "elevenlabs-tts":
+        return await getElevenLabsModels(apiKey);
+      case "groq":
+        return await getGroqAiModels(apiKey);
+      case "deepseek":
+        return await getDeepSeekModels(apiKey);
+      case "apipie":
+        return await getAPIPieModels(apiKey);
+      case "novita":
+        return await getNovitaModels();
+      case "cometapi":
+        return await getCometApiModels();
+      case "xai":
+        return await getXAIModels(apiKey);
+      case "nvidia-nim":
+        return await getNvidiaNimModels(basePath);
+      case "gemini":
+        return await getGeminiModels(apiKey);
+      case "ppio":
+        return await getPPIOModels(apiKey);
+      case "dpais":
+        return await getDellProAiStudioModels(basePath);
+      case "moonshotai":
+        return await getMoonshotAiModels(apiKey);
+      case "foundry":
+        return await getFoundryModels(basePath);
+      case "cohere":
+        return await getCohereModels(apiKey, "chat");
+      case "zai":
+        return await getZAiModels(apiKey);
+      case "generic-openai":
+        return await genericOpenAiModels(basePath, apiKey);
+      case "native-embedder":
+        return await getNativeEmbedderModels();
+      case "cohere-embedder":
+        return await getCohereModels(apiKey, "embed");
+      default:
+        return { models: [], error: "Invalid provider for custom models" };
+    }
+  } catch (error) {
+    console.error(`Error getting custom models for ${provider}:`, error.message);
+    return { models: [], error: error.message };
   }
 }
 
@@ -834,24 +839,16 @@ async function genericOpenAiModels(basePath = null, apiKey = null) {
     console.log(`[Generic OpenAI] 原始路径: ${urlPath}`);
     new URL(urlPath);
 
-    // 优化路径处理：智能处理 /v1 后缀
+    // 移除末尾斜杠，但保留 /v1 路径
     if (urlPath.endsWith("/")) {
-      // 如果以 / 结尾，移除多余的 /
       urlPath = urlPath.slice(0, -1);
       console.log(`[Generic OpenAI] 移除末尾斜杠后: ${urlPath}`);
     }
 
-    // 检查是否已经包含 /v1
-    if (!urlPath.endsWith("/v1")) {
-      // 如果没有 /v1 后缀，添加它
-      urlPath = urlPath + "/v1";
-      console.log(`[Generic OpenAI] 添加 /v1 后缀后: ${urlPath}`);
-    } else {
-      console.log(`[Generic OpenAI] 已包含 /v1 后缀，无需修改: ${urlPath}`);
-    }
-
+    // 对于 Generic OpenAI 兼容的 API，直接使用用户提供的完整路径作为 baseURL
+    // OpenAI SDK 会在 baseURL 后添加具体的端点路径（如 /models）
     url = urlPath;
-    console.log(`[Generic OpenAI] 最终API地址: ${url}`);
+    console.log(`[Generic OpenAI] 最终 baseURL: ${url}`);
   } catch {
     console.error(`[Generic OpenAI] 无效的URL: ${basePath || process.env.GENERIC_OPEN_AI_BASE_PATH}`);
     return { models: [], error: "Not a valid URL." };
@@ -860,35 +857,56 @@ async function genericOpenAiModels(basePath = null, apiKey = null) {
   const { OpenAI: OpenAIApi } = require("openai");
   const key = apiKey || process.env.GENERIC_OPEN_AI_API_KEY || null;
 
+  console.log(`[Generic OpenAI] 创建 OpenAI 客户端:`, {
+    baseURL: url,
+    hasApiKey: !!key,
+    apiKeyLength: key ? key.length : 0
+  });
+
   const openai = new OpenAIApi({
     baseURL: url,
-    apiKey: key || "sk-dummy", // OpenAI SDK 要求有 API key,但如果不需要的话会被忽略
+    apiKey: key || "sk-dummy", // OpenAI SDK 要求有 API key
+    timeout: 30000, // 30秒超时
+    maxRetries: 0,  // 不重试，避免多次请求
+    defaultHeaders: {
+      'User-Agent': 'AnythingLLM/1.0 (compatible; OpenAI-Client)',
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    },
   });
 
   const models = await openai.models
     .list()
-    .then((results) => results.data)
+    .then((results) => {
+      console.log(`[Generic OpenAI] SDK 调用成功，获取到 ${results.data?.length || 0} 个模型`);
+      return results.data;
+    })
     .catch((e) => {
-      console.error(`Generic OpenAI:listModels`, e.message);
-      // 改进的错误信息，帮助用户诊断问题
-      console.error(`Error details:`, {
+      console.error(`[Generic OpenAI] SDK 调用失败:`, e.message);
+      console.error(`[Generic OpenAI] 错误类型:`, e.constructor.name);
+      console.error(`[Generic OpenAI] 错误状态:`, e.status);
+      console.error(`[Generic OpenAI] 错误详情:`, {
         originalBasePath: basePath || process.env.GENERIC_OPEN_AI_BASE_PATH,
         finalUrl: url,
         hasApiKey: !!key,
         apiKeyLength: key ? key.length : 0,
-        error: e.message
+        error: e.message,
+        status: e.status,
+        type: e.type
       });
 
       // 根据错误类型提供更具体的建议
+      let errorMessage = e.message;
       if (e.message.includes('ECONNREFUSED') || e.message.includes('ENOTFOUND')) {
-        console.error(`建议：请检查服务器地址是否正确，服务器是否正在运行`);
-      } else if (e.message.includes('401') || e.message.includes('403')) {
-        console.error(`建议：请检查API Key是否正确`);
-      } else if (e.message.includes('404')) {
-        console.error(`建议：请检查API路径是否正确，应该以 /v1 结尾`);
+        errorMessage = `连接失败：无法连接到服务器 ${url}，请检查地址是否正确`;
+      } else if (e.status === 401 || e.status === 403 || e.message.includes('401') || e.message.includes('403')) {
+        errorMessage = `认证失败：API Key 无效或权限不足`;
+      } else if (e.status === 404 || e.message.includes('404')) {
+        errorMessage = `路径错误：API 端点不存在，请检查 URL 路径`;
       }
 
-      return [];
+      // 返回错误信息而不是空数组
+      throw new Error(errorMessage);
     });
 
   // Api Key or URL was successful so lets save it for future uses

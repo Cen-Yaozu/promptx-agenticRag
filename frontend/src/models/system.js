@@ -510,7 +510,7 @@ const System = {
     provider,
     apiKey = null,
     basePath = null,
-    timeout = null
+    timeout = 10000  // 默认10秒超时
   ) {
     const controller = new AbortController();
     if (!!timeout) {

@@ -200,11 +200,18 @@ async function streamChatWithWorkspace(
   );
 
   console.log(`[流式聊天] 获取到 ${parsedFiles.length} 个解析文件`);
+  console.log(`[流式聊天] 解析文件详情:`, parsedFiles.map(f => ({
+    filename: f.title || 'unknown',
+    contentLength: f.pageContent?.length || 0,
+    tokenCount: f.token_count_estimate || 0
+  })));
 
   // 将解析文件添加到上下文和来源列表
   parsedFiles.forEach((doc) => {
     const { pageContent, ...metadata } = doc;
 
+    console.log(`[流式聊天] 添加文档到上下文: ${doc.title || 'unknown'}, 内容长度: ${pageContent?.length || 0}`);
+    
     // 添加到上下文文本
     contextTexts.push(doc.pageContent);
 
@@ -216,6 +223,8 @@ async function streamChatWithWorkspace(
       ...metadata,
     });
   });
+
+  console.log(`[流式聊天] 总上下文文本数量: ${contextTexts.length}, 总来源数量: ${sources.length}`);
 
   // 🔥 第九步：向量相似度搜索
   // 这是RAG(检索增强生成)的核心步骤!

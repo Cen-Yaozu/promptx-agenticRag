@@ -121,11 +121,18 @@ function workspaceParsedFilesEndpoints(app) {
     ],
     async function (request, response) {
       try {
+        console.log("=== PARSE ENDPOINT REACHED ===");
+        console.log(`[文档上传] 🔥 收到文档上传请求`);
+        
         const user = await userFromSession(request, response);
         const workspace = response.locals.workspace;
         const Collector = new CollectorApi();
         const { originalname } = request.file;
+        
+        console.log(`[文档上传] 用户: ${user?.id || 'anonymous'}, 工作空间: ${workspace?.slug}, 文件: ${originalname}`);
+        
         const processingOnline = await Collector.online();
+        console.log(`[文档上传] CollectorApi状态: ${processingOnline ? '在线' : '离线'}`);
 
         if (!processingOnline) {
           return response.status(500).json({
@@ -134,9 +141,15 @@ function workspaceParsedFilesEndpoints(app) {
           });
         }
 
+        console.log(`[文档上传] 开始解析文档: ${originalname}`);
         const { success, reason, documents } =
           await Collector.parseDocument(originalname);
+          
+        console.log(`[文档上传] 解析结果: success=${success}, documents数量=${documents?.length || 0}`);
+        if (reason) console.log(`[文档上传] 解析原因: ${reason}`);
+        
         if (!success || !documents?.[0]) {
+          console.error(`[文档上传] 解析失败: ${reason || "No document returned from collector"}`);
           return response.status(500).json({
             success: false,
             error: reason || "No document returned from collector",
@@ -158,6 +171,15 @@ function workspaceParsedFilesEndpoints(app) {
             // Strip out pageContent
             delete metadata.pageContent;
             const filename = `${originalname}-${doc.id}.json`;
+            
+            console.log(`[文档上传] 准备保存到数据库:`, {
+              filename,
+              workspaceId: workspace.id,
+              userId: user?.id || null,
+              threadId: thread?.id || null,
+              tokenCountEstimate: doc.token_count_estimate || 0
+            });
+            
             const { file, error: dbError } = await WorkspaceParsedFiles.create({
               filename,
               workspaceId: workspace.id,
@@ -167,7 +189,12 @@ function workspaceParsedFilesEndpoints(app) {
               tokenCountEstimate: doc.token_count_estimate || 0,
             });
 
-            if (dbError) throw new Error(dbError);
+            if (dbError) {
+              console.error(`[文档上传] 数据库保存失败:`, dbError);
+              throw new Error(dbError);
+            }
+            
+            console.log(`[文档上传] 数据库保存成功:`, { fileId: file?.id, filename: file?.filename });
             return file;
           })
         );

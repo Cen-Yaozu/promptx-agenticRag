@@ -211,6 +211,14 @@ export function DnDFileUploaderProvider({
    * @param {Attachment[]} newAttachments
    */
   async function embedEligibleAttachments(newAttachments = []) {
+    console.log("🔥 [前端] embedEligibleAttachments 开始", {
+      newAttachments: newAttachments.map(a => ({
+        name: a.file.name,
+        type: a.type,
+        size: a.file.size
+      }))
+    });
+    
     window.dispatchEvent(new CustomEvent(ATTACHMENTS_PROCESSING_EVENT));
     const promises = [];
 
@@ -225,12 +233,28 @@ export function DnDFileUploaderProvider({
     let batchPendingFiles = [];
 
     for (const attachment of newAttachments) {
+      console.log("🔥 [前端] 处理附件", {
+        name: attachment.file.name,
+        type: attachment.type,
+        size: attachment.file.size
+      });
+      
       // Images/attachments are chat specific.
-      if (attachment.type === "attachment") continue;
+      if (attachment.type === "attachment") {
+        console.log("🔥 [前端] 跳过图片附件:", attachment.file.name);
+        continue;
+      }
 
+      console.log("🔥 [前端] 准备上传文档:", attachment.file.name);
       const formData = new FormData();
       formData.append("file", attachment.file, attachment.file.name);
       formData.append("threadSlug", threadSlug || null);
+      
+      console.log("🔥 [前端] 调用 Workspace.parseFile", {
+        workspace: workspace.slug,
+        fileName: attachment.file.name
+      });
+      
       promises.push(
         Workspace.parseFile(workspace.slug, formData).then(
           async ({ response, data }) => {

@@ -4,6 +4,7 @@ import { CaretUpDown, X, Check, Triangle, Info } from "@phosphor-icons/react";
 import ConfigManager from "@/utils/configManager";
 import { AVAILABLE_LLM_PROVIDERS } from "@/pages/GeneralSettings/LLMPreference";
 import showToast from "@/utils/toast";
+import System from "@/models/system";
 
 /**
  * 简单模式配置视图组件
@@ -33,6 +34,7 @@ const SimpleConfigView = ({
   const [showModelSearch, setShowModelSearch] = useState(false);
   const [availableModels, setAvailableModels] = useState([]);
   const [isModelsLoading, setIsModelsLoading] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
 
   // 可用供应商列表
   const availableProviders = useMemo(() => {
@@ -131,12 +133,11 @@ const SimpleConfigView = ({
     setSearchQuery(''); // 清空搜索
     setShowProviderSearch(false);
 
-    // 供应商切换时，从系统配置获取已保存的模型列表
-    // 不使用当前输入的API Key，因为它可能属于其他供应商
-    fetchProviderModels(provider, false);
+    // 移除自动获取模型列表，让用户主动触发
+    console.log('[SimpleConfigView] 供应商已选择:', provider);
 
     validateConfig();
-  }, [fetchProviderModels, validateConfig]);
+  }, [validateConfig]);
 
   // 处理模型选择
   const handleModelSelect = useCallback((model) => {
@@ -151,17 +152,11 @@ const SimpleConfigView = ({
     switch (field) {
       case 'apiKey':
         setApiKey(value);
-        // 当用户输入新的API Key时，使用它重新获取模型列表
-        if (selectedProvider && value) {
-          fetchProviderModels(selectedProvider, true);
-        }
+        // 移除自动验证，让用户主动触发
         break;
       case 'basePath':
         setBasePath(value);
-        // 当用户修改Base Path时，使用当前API Key重新获取模型
-        if (selectedProvider && apiKey) {
-          fetchProviderModels(selectedProvider, true);
-        }
+        // 移除自动验证，让用户主动触发
         break;
       case 'tokenLimit':
         setTokenLimit(value);
@@ -170,7 +165,7 @@ const SimpleConfigView = ({
         break;
     }
     validateConfig();
-  }, [validateConfig, selectedProvider, apiKey, fetchProviderModels]);
+  }, [validateConfig]);
 
   // 保存配置
   const handleSave = useCallback(async () => {
@@ -220,6 +215,134 @@ const SimpleConfigView = ({
     }
   }, [onCancel]);
 
+  // 测试连接并获取模型列表
+  const handleTestConnection = useCallback(async () => {
+    if (!selectedProvider) {
+      showToast('请先选择LLM供应商', 'error');
+      return;
+    }
+
+    setIsTestingConnection(true);
+    setIsModelsLoading(true);
+    try {
+      console.log('[SimpleConfigView] 开始测试连接...', {
+        provider: selectedProvider,
+        apiKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'null',
+        basePath: basePath || 'null',
+        hasApiKey: !!apiKey,
+        hasBasePath: !!basePath
+      });
+
+      // 直接调用 System.customModels 来获取完整的响应信息
+      const response = await System.customModels(selectedProvider, apiKey, basePath);
+      
+      console.log('[SimpleConfigView] API 响应:', response);
+
+      // 检查是否有错误
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      const models = response?.models || [];
+      
+      // 处理模型数据：支持字符串数组和对象数组两种格式
+      const validModels = Array.isArray(models)
+        ? models
+            .map(model => {
+              // 如果是字符串,直接返回
+              if (typeof model === 'string') {
+                return model.trim();
+              }
+              // 如果是对象,提取 id 字段
+              if (typeof model === 'object' && model !== null && model.id) {
+                return String(model.id).trim();
+              }
+              return null;
+            })
+            .filter(model => model && model.length > 0)
+        : [];
+
+      console.log('[SimpleConfigView] 处理后的模型列表:', validModels);
+      setAvailableModels(validModels);
+      
+      if (validModels.length > 0) {
+        showToast(`连接成功！获取到 ${validModels.length} 个模型`, 'success');
+      } else {
+        showToast('连接成功，但未获取到模型列表', 'warning');
+      }
+    } catch (error) {
+      console.error('[SimpleConfigView] 连接测试失败:', error);
+      showToast(`连接失败: ${error.message}`, 'error');
+      setAvailableModels([]);
+    } finally {
+      setIsTestingConnection(false);
+      setIsModelsLoading(false);
+    }
+  }, [selectedProvider, apiKey, basePath, configManager]);
+
+  // 获取模型列表（不测试连接，只获取模型）
+  const handleGetModels = useCallback(async () => {
+    if (!selectedProvider) {
+      showToast('请先选择LLM供应商', 'error');
+      return;
+    }
+
+    setIsModelsLoading(true);
+    try {
+      console.log('[SimpleConfigView] 开始获取模型列表...', {
+        provider: selectedProvider,
+        apiKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'null',
+        basePath: basePath || 'null',
+        hasApiKey: !!apiKey,
+        hasBasePath: !!basePath
+      });
+
+      // 直接调用 System.customModels 来获取模型列表
+      const response = await System.customModels(selectedProvider, apiKey, basePath);
+      
+      console.log('[SimpleConfigView] 获取模型 API 响应:', response);
+
+      // 检查是否有错误
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      const models = response?.models || [];
+      
+      // 处理模型数据：支持字符串数组和对象数组两种格式
+      const validModels = Array.isArray(models)
+        ? models
+            .map(model => {
+              // 如果是字符串,直接返回
+              if (typeof model === 'string') {
+                return model;
+              }
+              // 如果是对象,提取id字段
+              if (typeof model === 'object' && model !== null) {
+                return model.id || model.name || model.model || null;
+              }
+              return null;
+            })
+            .filter(Boolean) // 过滤掉null/undefined值
+        : [];
+
+      console.log('[SimpleConfigView] 处理后的模型列表:', validModels);
+      setAvailableModels(validModels);
+
+      if (validModels.length > 0) {
+        showToast(`成功获取到 ${validModels.length} 个模型`, 'success');
+      } else {
+        showToast('未获取到模型列表', 'warning');
+      }
+    } catch (error) {
+      console.error('[SimpleConfigView] 获取模型失败:', error);
+      showToast(`获取模型失败: ${error.message}`, 'error');
+      setAvailableModels([]);
+    } finally {
+      setIsModelsLoading(false);
+    }
+  }, [selectedProvider, apiKey, basePath]);
+
   // 加载当前配置 - 只在组件挂载时执行一次
   useEffect(() => {
     let isMounted = true;
@@ -246,38 +369,8 @@ const SimpleConfigView = ({
             setBasePath(config.basePath);
           }
 
-          // 直接调用模型加载，不依赖fetchProviderModels
-          setIsModelsLoading(true);
-          try {
-            console.log('[SimpleConfigView] 开始获取模型列表...', {
-              provider: config.provider,
-              hasApiKey: !!config.apiKey,
-              hasBasePath: !!config.basePath
-            });
-            const models = await configManager.getProviderModels(
-              config.provider,
-              config.apiKey,
-              config.basePath
-            );
-            console.log('[SimpleConfigView] getProviderModels 返回:', models);
-            console.log('[SimpleConfigView] models 类型:', typeof models, 'isArray:', Array.isArray(models));
-            console.log('[SimpleConfigView] 模型数量:', models.length);
-
-            // ConfigManager.getProviderModels 已经返回了处理好的字符串数组
-            if (isMounted) {
-              setAvailableModels(models);
-              console.log('[SimpleConfigView] 已设置 availableModels 状态, 数量:', models.length);
-            }
-          } catch (error) {
-            console.warn('获取模型列表失败:', error);
-            if (isMounted) {
-              setAvailableModels([]);
-            }
-          } finally {
-            if (isMounted) {
-              setIsModelsLoading(false);
-            }
-          }
+          // 不再自动获取模型列表，让用户主动触发
+          console.log('[SimpleConfigView] 配置加载完成，供应商:', config.provider);
         }
 
         if (config && config.model) {
@@ -309,14 +402,7 @@ const SimpleConfigView = ({
     };
   }, []); // 空依赖数组，只在挂载时执行一次
 
-  // 当供应商改变时，从系统配置获取模型（避免使用当前输入的API Key）
-  useEffect(() => {
-    if (selectedProvider) {
-      // 供应商切换时，从系统配置获取已保存的配置
-      // 这样可以避免使用属于其他供应商的API Key
-      fetchProviderModels(selectedProvider, false);
-    }
-  }, [selectedProvider, fetchProviderModels]); // 移除 apiKey 依赖
+  // 移除自动获取模型的 useEffect，改为用户主动触发
 
   if (isLoading) {
     return (
@@ -509,6 +595,12 @@ const SimpleConfigView = ({
             <span>{errors.model}</span>
           </div>
         )}
+        {/* 显示模型获取状态 */}
+        {availableModels.length > 0 && !isModelsLoading && (
+          <div className="mt-2 text-sm text-green-400">
+            ✓ 已获取到 {availableModels.length} 个可用模型
+          </div>
+        )}
       </div>
 
       {/* API Key */}
@@ -565,24 +657,70 @@ const SimpleConfigView = ({
       </div>
 
       {/* 操作按钮 */}
-      <div className="flex gap-3 justify-end">
-        {onCancel && (
+      <div className="flex gap-3 justify-between">
+        <div className="flex gap-3">
           <button
             type="button"
-            onClick={handleCancel}
-            className="px-6 py-3 bg-theme-bg-primary text-white rounded-lg hover:bg-theme-bg-secondary transition-colors"
+            onClick={handleTestConnection}
+            disabled={!selectedProvider || isTestingConnection}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            取消
+            {isTestingConnection ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                测试连接中...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                测试连接
+              </>
+            )}
           </button>
-        )}
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={isSaving}
-          className="px-6 py-3 bg-primary-button text-white rounded-lg hover:bg-primary-button-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isSaving ? '保存中...' : '保存配置'}
-        </button>
+          
+          <button
+            type="button"
+            onClick={handleGetModels}
+            disabled={!selectedProvider || isModelsLoading}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {isModelsLoading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                获取模型中...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                获取模型
+              </>
+            )}
+          </button>
+        </div>
+        
+        <div className="flex gap-3">
+          {onCancel && (
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="px-6 py-3 bg-theme-bg-primary text-white rounded-lg hover:bg-theme-bg-secondary transition-colors"
+            >
+              取消
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="px-6 py-3 bg-primary-button text-white rounded-lg hover:bg-primary-button-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSaving ? '保存中...' : '保存配置'}
+          </button>
+        </div>
       </div>
     </div>
   );

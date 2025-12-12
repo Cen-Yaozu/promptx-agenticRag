@@ -190,11 +190,34 @@ const WorkspaceParsedFiles = {
 
   getContextFiles: async function (workspace, thread = null, user = null) {
     try {
-      const files = await this.where({
+      const queryConditions = {
         workspaceId: workspace.id,
         threadId: thread?.id || null,
         ...(user ? { userId: user.id } : {}),
-      });
+      };
+      
+      console.log(`[WorkspaceParsedFiles] 查询条件:`, queryConditions);
+      console.log(`[WorkspaceParsedFiles] workspace.id: ${workspace.id}, thread?.id: ${thread?.id}, user?.id: ${user?.id}`);
+      
+      // 🔥 调试：查看数据库中所有的解析文件记录
+      const allFiles = await this.where({});
+      console.log(`[WorkspaceParsedFiles] 数据库中总共有 ${allFiles.length} 个解析文件记录`);
+      if (allFiles.length > 0) {
+        console.log(`[WorkspaceParsedFiles] 所有文件记录:`, allFiles.map(f => ({
+          id: f.id,
+          filename: f.filename,
+          workspaceId: f.workspaceId,
+          threadId: f.threadId,
+          userId: f.userId
+        })));
+      }
+      
+      const files = await this.where(queryConditions);
+      
+      console.log(`[WorkspaceParsedFiles] 匹配查询条件的文件: ${files.length} 个`);
+      if (files.length > 0) {
+        console.log(`[WorkspaceParsedFiles] 匹配的文件列表:`, files.map(f => ({ id: f.id, filename: f.filename, workspaceId: f.workspaceId, threadId: f.threadId, userId: f.userId })));
+      }
 
       const results = [];
       for (const file of files) {

@@ -90,9 +90,11 @@ const pfpUploadStorage = multer.diskStorage({
  * @param {NextFunction} next
  */
 function handleFileUpload(request, response, next) {
+  console.log("🔥 [中间件] handleFileUpload 开始");
   const upload = multer({ storage: fileUploadStorage }).single("file");
   upload(request, response, function (err) {
     if (err) {
+      console.log("🔥 [中间件] handleFileUpload 错误:", err.message);
       response
         .status(500)
         .json({
@@ -102,6 +104,7 @@ function handleFileUpload(request, response, next) {
         .end();
       return;
     }
+    console.log("🔥 [中间件] handleFileUpload 成功，文件:", request.file ? request.file.originalname : "无文件");
     next();
   });
 }

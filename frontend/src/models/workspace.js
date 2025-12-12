@@ -346,13 +346,30 @@ const Workspace = {
     return { response, data };
   },
   parseFile: async function (slug, formData) {
+    console.log("🔥 [前端] Workspace.parseFile 开始", {
+      slug,
+      url: `${API_BASE}/workspace/${slug}/parse`,
+      formDataEntries: Array.from(formData.entries()).map(([key, value]) => [
+        key,
+        value instanceof File ? `File: ${value.name} (${value.size} bytes)` : value
+      ])
+    });
+    
     const response = await fetch(`${API_BASE}/workspace/${slug}/parse`, {
       method: "POST",
       body: formData,
       headers: baseHeaders(),
     });
 
+    console.log("🔥 [前端] parseFile 响应", {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok
+    });
+
     const data = await response.json();
+    console.log("🔥 [前端] parseFile 数据", data);
+    
     return { response, data };
   },
 

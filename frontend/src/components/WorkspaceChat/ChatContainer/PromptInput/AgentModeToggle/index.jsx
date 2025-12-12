@@ -37,8 +37,8 @@ export default function AgentModeToggle() {
       data-tooltip-id="tooltip-agent-mode"
       data-tooltip-content={
         isAgentMode
-          ? "🤖 Agent 模式已开启 - 支持网页搜索、文件操作等高级功能"
-          : "💬 普通对话模式 - 简单AI问答"
+          ? "🤖 Agent 模式 - 支持网页搜索、文件操作、文档上下文等全功能"
+          : "💬 普通模式 - 支持文档上下文和基础对话功能"
       }
       aria-label={isAgentMode ? "Agent Mode" : "Normal Mode"}
       onClick={toggleMode}
