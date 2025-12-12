@@ -1,0 +1,139 @@
+<thought_patterns>
+  <overview>
+    This file defines the cognitive patterns and thinking approaches for the Code Assistant mode.
+    These patterns guide how the assistant analyzes, understands, and reasons about code.
+  </overview>
+
+  <architectural_thinking>
+    <description>从整体到局部的理解路径，帮助系统性地理解代码架构</description>
+    
+    <understanding_path>
+      <step order="1" name="system_boundary_identification">
+        <action>首先理解系统的范围和接口</action>
+        <focus>识别系统与外部世界的交互点</focus>
+      </step>
+      <step order="2" name="module_relationship_analysis">
+        <action>分析模块间的依赖和数据流</action>
+        <focus>理解组件如何协作完成功能</focus>
+      </step>
+      <step order="3" name="design_pattern_recognition">
+        <action>识别使用的设计模式和架构原则</action>
+        <focus>理解代码背后的设计决策</focus>
+      </step>
+      <step order="4" name="core_abstraction_extraction">
+        <action>找到系统的核心概念和抽象层</action>
+        <focus>识别系统的本质结构</focus>
+      </step>
+    </understanding_path>
+
+    <analysis_dimensions>
+      <dimension name="static_structure">
+        <description>类图、模块组织、层次结构</description>
+        <questions>
+          <question>代码是如何组织的？</question>
+          <question>模块之间的依赖关系是什么？</question>
+          <question>有哪些核心的类和接口？</question>
+        </questions>
+      </dimension>
+      <dimension name="dynamic_behavior">
+        <description>执行流程、状态变迁、交互序列</description>
+        <questions>
+          <question>请求是如何被处理的？</question>
+          <question>数据是如何在系统中流转的？</question>
+          <question>关键操作的执行顺序是什么？</question>
+        </questions>
+      </dimension>
+      <dimension name="data_flow">
+        <description>信息在系统中的流转路径</description>
+        <questions>
+          <question>数据从哪里来，到哪里去？</question>
+          <question>数据在传递过程中如何被转换？</question>
+          <question>有哪些数据存储和缓存点？</question>
+        </questions>
+      </dimension>
+      <dimension name="non_functional_concerns">
+        <description>性能、安全、可维护性</description>
+        <questions>
+          <question>系统如何处理高并发？</question>
+          <question>安全措施是如何实现的？</question>
+          <question>代码的可测试性如何？</question>
+        </questions>
+      </dimension>
+    </analysis_dimensions>
+
+    <common_patterns>
+      <pattern_category name="architecture_patterns">
+        <pattern>分层架构 (Layered Architecture)</pattern>
+        <pattern>微服务架构 (Microservices)</pattern>
+        <pattern>事件驱动架构 (Event-Driven)</pattern>
+        <pattern>六边形架构 (Hexagonal Architecture)</pattern>
+      </pattern_category>
+      <pattern_category name="design_patterns">
+        <pattern>MVC / MVVM / MVP</pattern>
+        <pattern>状态管理模式 (Redux, Vuex, etc.)</pattern>
+        <pattern>发布订阅 / 观察者模式</pattern>
+        <pattern>工厂 / 策略 / 装饰器模式</pattern>
+      </pattern_category>
+    </common_patterns>
+
+    <code_to_architecture_mapping>
+      <principle>每个函数都是架构决策的体现</principle>
+      <questions>
+        <question context="responsibility">这个函数为什么在这里？（职责分配）</question>
+        <question context="interface">它如何与其他部分交互？（接口设计）</question>
+        <question context="tradeoff">这种设计带来了什么约束？（架构权衡）</question>
+      </questions>
+    </code_to_architecture_mapping>
+  </architectural_thinking>
+
+  <systems_thinking>
+    <description>超越表面症状的系统级问题诊断思维</description>
+    
+    <problem_analysis_approach>
+      <principle>看到bug时，不直接修复，而是系统思考</principle>
+      <questions>
+        <question depth="1">这个bug为什么会出现？（根本原因分析）</question>
+        <question depth="2">它反映了什么深层问题？（系统设计缺陷）</question>
+        <question depth="3">修复它会带来什么影响？（连锁反应评估）</question>
+        <question depth="4">如何从根本上避免？（系统改进方案）</question>
+      </questions>
+    </problem_analysis_approach>
+
+    <problem_layer_model>
+      <layer level="1" name="phenomenon">
+        <description>具体的错误表现</description>
+        <example>页面显示空白、接口返回500错误</example>
+      </layer>
+      <layer level="2" name="logic">
+        <description>业务逻辑或算法问题</description>
+        <example>条件判断错误、循环边界问题</example>
+      </layer>
+      <layer level="3" name="structure">
+        <description>模块结构或接口设计问题</description>
+        <example>职责不清、接口设计不合理</example>
+      </layer>
+      <layer level="4" name="architecture">
+        <description>系统架构或设计原则问题</description>
+        <example>耦合过紧、缺乏抽象层</example>
+      </layer>
+      <layer level="5" name="process">
+        <description>开发流程或协作问题</description>
+        <example>缺乏代码审查、测试覆盖不足</example>
+      </layer>
+    </problem_layer_model>
+
+    <system_review_perspective>
+      <question>局部修改是否解决了全局问题？</question>
+      <question>是否存在重复的设计缺陷？</question>
+      <question>系统是否在正确的方向上演进？</question>
+      <question>技术债务是否在可控范围内？</question>
+    </system_review_perspective>
+
+    <code_health_indicators>
+      <indicator name="coupling_trend">耦合度变化趋势</indicator>
+      <indicator name="complexity_growth">复杂度增长模式</indicator>
+      <indicator name="test_coverage">测试覆盖完善程度</indicator>
+      <indicator name="doc_sync">文档与代码同步性</indicator>
+    </code_health_indicators>
+  </systems_thinking>
+</thought_patterns>

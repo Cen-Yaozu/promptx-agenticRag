@@ -1,0 +1,346 @@
+<knowledge_base>
+  <overview>
+    This file contains domain knowledge and reference patterns for the Code Assistant mode.
+    It provides structured information about code analysis, design patterns, and business-technical mappings.
+  </overview>
+
+  <code_analysis_patterns>
+    <description>代码分析模式知识库</description>
+
+    <architecture_pattern_recognition>
+      <title>常见架构模式识别特征</title>
+      
+      <pattern name="layered_architecture">
+        <chinese_name>分层架构</chinese_name>
+        <characteristics>
+          <characteristic>表现层、业务层、数据层分离</characteristic>
+          <characteristic>依赖关系自上而下，下层不依赖上层</characteristic>
+          <characteristic>通过接口或DTO层进行数据传递</characteristic>
+        </characteristics>
+        <directory_hints>
+          <hint>controllers/, services/, repositories/</hint>
+          <hint>presentation/, domain/, infrastructure/</hint>
+          <hint>api/, core/, data/</hint>
+        </directory_hints>
+      </pattern>
+
+      <pattern name="mvc_mvp_mvvm">
+        <chinese_name>MVC/MVP/MVVM模式</chinese_name>
+        <characteristics>
+          <characteristic>Model负责数据和业务逻辑</characteristic>
+          <characteristic>View负责UI展示（纯静态）</characteristic>
+          <characteristic>Controller/Presenter/ViewModel负责协调</characteristic>
+        </characteristics>
+        <directory_hints>
+          <hint>models/, views/, controllers/</hint>
+          <hint>components/, stores/, actions/</hint>
+        </directory_hints>
+      </pattern>
+
+      <pattern name="microservices">
+        <chinese_name>微服务架构</chinese_name>
+        <characteristics>
+          <characteristic>按业务能力拆分服务</characteristic>
+          <characteristic>服务间通过API或消息队列通信</characteristic>
+          <characteristic>每个服务有独立的数据存储</characteristic>
+        </characteristics>
+        <directory_hints>
+          <hint>services/user-service/, services/order-service/</hint>
+          <hint>独立的package.json或go.mod</hint>
+        </directory_hints>
+      </pattern>
+
+      <pattern name="event_driven">
+        <chinese_name>事件驱动架构</chinese_name>
+        <characteristics>
+          <characteristic>组件通过事件进行通信</characteristic>
+          <characteristic>松耦合，异步处理</characteristic>
+          <characteristic>事件总线或消息队列作为中介</characteristic>
+        </characteristics>
+        <code_hints>
+          <hint>EventEmitter, EventBus, MessageQueue</hint>
+          <hint>publish/subscribe, on/emit patterns</hint>
+        </code_hints>
+      </pattern>
+    </architecture_pattern_recognition>
+
+    <design_pattern_features>
+      <title>设计模式代码特征</title>
+      
+      <pattern name="factory">
+        <chinese_name>工厂模式</chinese_name>
+        <characteristics>
+          <characteristic>创建对象的逻辑封装在专门的工厂类</characteristic>
+          <characteristic>通过传入参数决定创建哪种类型的对象</characteristic>
+        </characteristics>
+        <code_signature><![CDATA[
+class Factory {
+  create(type) {
+    switch(type) {
+      case 'A': return new ProductA();
+      case 'B': return new ProductB();
+    }
+  }
+}
+        ]]></code_signature>
+      </pattern>
+
+      <pattern name="observer">
+        <chinese_name>观察者模式</chinese_name>
+        <characteristics>
+          <characteristic>主题对象维护观察者列表</characteristic>
+          <characteristic>状态变化时通知所有观察者</characteristic>
+          <characteristic>事件处理、回调函数的典型实现</characteristic>
+        </characteristics>
+        <code_signature><![CDATA[
+class Subject {
+  observers = [];
+  subscribe(observer) { this.observers.push(observer); }
+  notify(data) { this.observers.forEach(o => o.update(data)); }
+}
+        ]]></code_signature>
+      </pattern>
+
+      <pattern name="strategy">
+        <chinese_name>策略模式</chinese_name>
+        <characteristics>
+          <characteristic>封装不同算法实现为策略类</characteristic>
+          <characteristic>运行时动态选择使用哪种策略</characteristic>
+          <characteristic>避免大量的if-else或switch语句</characteristic>
+        </characteristics>
+        <code_signature><![CDATA[
+class Context {
+  constructor(strategy) { this.strategy = strategy; }
+  execute() { return this.strategy.execute(); }
+}
+        ]]></code_signature>
+      </pattern>
+
+      <pattern name="singleton">
+        <chinese_name>单例模式</chinese_name>
+        <characteristics>
+          <characteristic>确保类只有一个实例</characteristic>
+          <characteristic>提供全局访问点</characteristic>
+        </characteristics>
+        <code_signature><![CDATA[
+class Singleton {
+  static instance;
+  static getInstance() {
+    if (!this.instance) this.instance = new Singleton();
+    return this.instance;
+  }
+}
+        ]]></code_signature>
+      </pattern>
+    </design_pattern_features>
+
+    <code_quality_metrics>
+      <title>代码质量评估指标</title>
+      
+      <metric_category name="complexity">
+        <chinese_name>复杂度指标</chinese_name>
+        <metrics>
+          <metric name="cyclomatic_complexity">
+            <description>圈复杂度</description>
+            <threshold>超过10需要重构</threshold>
+          </metric>
+          <metric name="cognitive_complexity">
+            <description>认知复杂度</description>
+            <threshold>人类理解的难度</threshold>
+          </metric>
+          <metric name="nesting_depth">
+            <description>嵌套深度</description>
+            <threshold>超过3层需要优化</threshold>
+          </metric>
+        </metrics>
+      </metric_category>
+
+      <metric_category name="coupling">
+        <chinese_name>耦合度指标</chinese_name>
+        <metrics>
+          <metric name="data_coupling" level="good">
+            <description>数据耦合：通过参数传递数据</description>
+          </metric>
+          <metric name="control_coupling" level="moderate">
+            <description>控制耦合：传递控制信息</description>
+          </metric>
+          <metric name="content_coupling" level="bad">
+            <description>内容耦合：直接修改另一模块数据（最差）</description>
+          </metric>
+        </metrics>
+      </metric_category>
+    </code_quality_metrics>
+
+    <refactoring_patterns>
+      <title>重构建议模式</title>
+      
+      <pattern name="long_function_refactoring">
+        <chinese_name>长函数重构</chinese_name>
+        <techniques>
+          <technique name="extract_function">
+            <description>提取函数：将部分逻辑提取为独立函数</description>
+          </technique>
+          <technique name="extract_class">
+            <description>提取类：将相关数据和行为组织为类</description>
+          </technique>
+          <technique name="decompose_conditional">
+            <description>分解条件表达式：复杂条件判断拆分</description>
+          </technique>
+        </techniques>
+      </pattern>
+
+      <pattern name="large_class_refactoring">
+        <chinese_name>大类重构</chinese_name>
+        <techniques>
+          <technique name="extract_class">
+            <description>提取类：将大类拆分为多个职责单一的类</description>
+          </technique>
+          <technique name="extract_interface">
+            <description>提取接口：定义行为契约，降低耦合</description>
+          </technique>
+          <technique name="composition_over_inheritance">
+            <description>组合替代继承：使用组合增加灵活性</description>
+          </technique>
+        </techniques>
+      </pattern>
+    </refactoring_patterns>
+  </code_analysis_patterns>
+
+  <business_technical_mapping>
+    <description>业务到技术映射知识</description>
+
+    <common_mappings>
+      <title>常见业务需求的技术映射</title>
+      
+      <mapping category="user_experience">
+        <business_need>用户体验改善</business_need>
+        <technical_solutions>
+          <solution>
+            <need>响应速度优化</need>
+            <approaches>缓存策略、异步处理、数据库优化</approaches>
+          </solution>
+          <solution>
+            <need>界面交互优化</need>
+            <approaches>前端组件优化、状态管理改进</approaches>
+          </solution>
+          <solution>
+            <need>操作简化</need>
+            <approaches>工作流程重构、UI/UX重新设计</approaches>
+          </solution>
+        </technical_solutions>
+      </mapping>
+
+      <mapping category="system_stability">
+        <business_need>系统稳定性提升</business_need>
+        <technical_solutions>
+          <solution>
+            <need>减少崩溃</need>
+            <approaches>异常处理完善、边界条件检查</approaches>
+          </solution>
+          <solution>
+            <need>提高可靠性</need>
+            <approaches>冗余设计、熔断机制、健康检查</approaches>
+          </solution>
+          <solution>
+            <need>数据一致性</need>
+            <approaches>事务管理、分布式锁、数据校验</approaches>
+          </solution>
+        </technical_solutions>
+      </mapping>
+
+      <mapping category="maintainability">
+        <business_need>可维护性改进</business_need>
+        <technical_solutions>
+          <solution>
+            <need>代码可读性</need>
+            <approaches>命名规范、注释完善、文档补充</approaches>
+          </solution>
+          <solution>
+            <need>功能扩展性</need>
+            <approaches>模块化设计、接口抽象、配置化管理</approaches>
+          </solution>
+          <solution>
+            <need>测试便利性</need>
+            <approaches>依赖注入、Mock支持、测试框架</approaches>
+          </solution>
+        </technical_solutions>
+      </mapping>
+
+      <mapping category="performance">
+        <business_need>性能优化需求</business_need>
+        <technical_solutions>
+          <solution>
+            <need>响应时间</need>
+            <approaches>算法优化、索引设计、缓存策略</approaches>
+          </solution>
+          <solution>
+            <need>吞吐量</need>
+            <approaches>并发处理、资源池、异步队列</approaches>
+          </solution>
+          <solution>
+            <need>资源使用</need>
+            <approaches>内存优化、连接池、垃圾回收调优</approaches>
+          </solution>
+        </technical_solutions>
+      </mapping>
+    </common_mappings>
+
+    <tradeoff_considerations>
+      <title>技术方案选择的业务考量</title>
+      
+      <tradeoff name="efficiency_vs_performance">
+        <chinese_name>开发效率 vs 性能</chinese_name>
+        <options>
+          <option scenario="fast_prototype">
+            <description>快速原型</description>
+            <approach>高级语言、框架快速开发</approach>
+          </option>
+          <option scenario="high_performance">
+            <description>高性能要求</description>
+            <approach>底层语言、精细优化</approach>
+          </option>
+          <option scenario="balanced">
+            <description>平衡方案</description>
+            <approach>JIT语言、性能关键部分优化</approach>
+          </option>
+        </options>
+      </tradeoff>
+
+      <tradeoff name="cost_vs_reliability">
+        <chinese_name>成本 vs 可靠性</chinese_name>
+        <options>
+          <option scenario="cost_sensitive">
+            <description>成本敏感</description>
+            <approach>开源方案、云服务按需使用</approach>
+          </option>
+          <option scenario="high_reliability">
+            <description>高可靠性要求</description>
+            <approach>商业方案、多活部署</approach>
+          </option>
+          <option scenario="balanced">
+            <description>平衡方案</description>
+            <approach>核心服务高可靠，非核心服务成本优先</approach>
+          </option>
+        </options>
+      </tradeoff>
+
+      <tradeoff name="security_vs_convenience">
+        <chinese_name>安全性 vs 便利性</chinese_name>
+        <options>
+          <option scenario="high_security">
+            <description>高安全要求</description>
+            <approach>严格权限控制、加密传输存储</approach>
+          </option>
+          <option scenario="high_convenience">
+            <description>高便利性要求</description>
+            <approach>简化流程、自动化处理</approach>
+          </option>
+          <option scenario="balanced">
+            <description>平衡方案</description>
+            <approach>风险评估、分级安全策略</approach>
+          </option>
+        </options>
+      </tradeoff>
+    </tradeoff_considerations>
+  </business_technical_mapping>
+</knowledge_base>
